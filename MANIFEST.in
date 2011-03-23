@@ -1,0 +1,5 @@
+include *.pdf
+include setup-cython.py
+include *.pxd
+include *.pyx
+include *.h

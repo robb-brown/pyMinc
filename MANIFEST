@@ -1,0 +1,8 @@
+pyMinc.c
+pyMinc.pxd
+pyMinc.pyx
+setup-cython.py
+setup.py
+pyMinc/__init__.py
+pyMinc/examples.py
+pyMinc/mincConstants.py
