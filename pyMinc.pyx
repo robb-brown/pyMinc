@@ -33,6 +33,7 @@ class mincFile(object):
 		cdef np.ndarray validRange = np.zeros(2,np.float64)
 		cdef np.ndarray actualRange = np.zeros(2,np.float64)
 
+#		print "In setupICV"
 #		print "Getting datatype"
 #		miget_datatype(self.mincFile,self.imgid,<nc_type *>mdatatype,<int *>issigned)
 #		issigned = not issigned
@@ -62,6 +63,10 @@ class mincFile(object):
 		
 
 	def loadFile(self,fname=None):
+		if sizeof(long) == 4:
+			longType = np.int32
+		else:
+			longType = np.int64
 		cdef int imgid = -1
 		cdef int ndims = -1
 		cdef np.ndarray dims = np.zeros(10,np.int32)
@@ -74,19 +79,25 @@ class mincFile(object):
 		cdef double max
 		cdef int ret
 		
+#		print "Sizeof long: %d" % sizeof(long)
 		self.imgid = imgid
 		if (fname):
 			self.fname = fname
 		self.mincFile = miopen(self.fname,NC_NOWRITE)
+#		print "Creating ICV"
 		self.icv = miicv_create()
 		self.setupICV()
+#		print "Done setting up ICV"
 		miicv_attach(self.icv,self.mincFile,ncvarid(self.mincFile,MIimage))
+#		print "Attaching ICV"
 		ret = miicv_inqint(self.icv, MI_ICV_VARID, &imgid)
 		# get num of dimensions
+#		print "Getting num of dimensions"
 		ncvarinq(self.mincFile,imgid,name,&nctype,&ndims,<int*>dims.data,NULL)
 
-		cdef np.ndarray origin = np.zeros(MAX_VAR_DIMS,np.int32)
-		cdef np.ndarray count = np.zeros(MAX_VAR_DIMS,np.int32)
+		cdef np.ndarray origin = np.zeros(MAX_VAR_DIMS,longType)
+		cdef np.ndarray count = np.zeros(MAX_VAR_DIMS,longType)
+#		print "Getting dimlengths and names"
 		for i in range(0,ndims):
 			ncdiminq(self.mincFile,dims[i],name,&dimLength)
 			dimLengths.append(dimLength)
@@ -118,11 +129,15 @@ class mincFile(object):
 		
 		miset_coords(ndims,0,<long*>origin.data)
 		cdef np.ndarray data = np.zeros(dimLengths,datatype)
+
+#		print "Getting data"		
 		miicv_get(self.icv,<long*>origin.data,<long*>count.data,<void*>data.data)
-		
+#		print "Done getting data"
 		self.data = data
 		
+#		print "Closing file"
 		miclose(self.mincFile)
+#		print "Freeing icv"
 		miicv_free(self.icv)
 		
 

@@ -11,7 +11,7 @@ ext_modules = [
 	Extension("mincFile", sourcefiles,
 						libraries=['minc','netcdf','curl'],
 						include_dirs = ['/usr/local/include','/usr/local/mni/include'],
-						library_dirs = ['/usr/local/lib','/opt/local32/lib'],
+						library_dirs = ['/usr/lib','/usr/local/lib','/opt/local/mni/lib'],
 						)
 	]
 
