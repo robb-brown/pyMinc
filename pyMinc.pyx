@@ -1,7 +1,7 @@
 import numpy as np
 cimport numpy as np
 
-from pyMinc.pyMinc cimport *
+from pyMinc cimport *
 
 from mincConstants import *
 
@@ -14,7 +14,7 @@ ncTypeToNumpy = {	NC_BYTE : {True:np.int8, False:np.uint8},
 					NC_DOUBLE : {True:np.float64, False:np.float64},
 				}
 
-class mincFile(object):
+cdef class mincFile(object):
 
 	def __init__(self,fname=None):
 		self.fname = fname
@@ -27,23 +27,34 @@ class mincFile(object):
 		if (fname):
 			self.loadFile()
 
-	def setupICV(self):
-		cdef int mdatatype
-		cdef int issigned
+	cdef setupICV(self):
+		outputType = NC_FLOAT
+		outputSigned = 1
+		cdef nc_type mdatatype = -1
+		cdef int issigned = -1
 		cdef np.ndarray validRange = np.zeros(2,np.float64)
+		cdef np.ndarray defaultRange = np.zeros(2,np.float64)
 		cdef np.ndarray actualRange = np.zeros(2,np.float64)
-
+		
 #		print "In setupICV"
+		self.imgid = ncvarid(self.mincFile,MIimage);
+#		print self.imgid
 #		print "Getting datatype"
-#		miget_datatype(self.mincFile,self.imgid,<nc_type *>mdatatype,<int *>issigned)
+		miget_datatype(self.mincFile,self.imgid,&mdatatype,&issigned)
 #		issigned = not issigned
 #		print "Getting valid range"
-#		miget_valid_range(self.mincFile,self.imgid,<double *>validRange.data)
+		miget_valid_range(self.mincFile,self.imgid,<double *>validRange.data)
+		miget_default_range(outputType,outputSigned,<double *>defaultRange.data)
 #		print "getting image range"
-#		miget_image_range(self.mincFile,<double *>actualRange.data)
+		miget_image_range(self.mincFile,<double *>actualRange.data)
 		
 		# Specify the type of image to get.  Just use float and fix later
-		miicv_setint(self.icv,MI_ICV_TYPE,NC_FLOAT)
+		miicv_setint(self.icv,MI_ICV_TYPE,outputType)
+#		miicv_setstr(self.icv,MI_ICV_SIGN,outputSigned)
+		miicv_setdbl(self.icv, MI_ICV_VALID_MIN,defaultRange[0])
+		miicv_setdbl(self.icv, MI_ICV_VALID_MAX,defaultRange[1])
+		miicv_setint(self.icv, MI_ICV_DO_NORM,True)
+		miicv_setint(self.icv, MI_ICV_USER_NORM,True)
 		
 		# Specify image dimensions.  We want positive values (do we?)
 		miicv_setint(self.icv, MI_ICV_DO_DIM_CONV, True);
@@ -56,10 +67,11 @@ class mincFile(object):
 		self.validRange = validRange
 		self.actualRange = actualRange
 		
-#		print mdatatype
-#		print issigned
-#		print validRange
-#		print actualRange
+#		print "MDatatype: ", mdatatype
+#		print "Is signed: ", issigned
+#		print "valid range: ",validRange
+#		print "actual range: ",actualRange
+#		print "default range: ",defaultRange
 		
 
 	def loadFile(self,fname=None):
@@ -87,6 +99,7 @@ class mincFile(object):
 #		print "Creating ICV"
 		self.icv = miicv_create()
 		self.setupICV()
+
 #		print "Done setting up ICV"
 		miicv_attach(self.icv,self.mincFile,ncvarid(self.mincFile,MIimage))
 #		print "Attaching ICV"
@@ -110,8 +123,8 @@ class mincFile(object):
 		# get the min and max values
 		miicv_inqdbl(self.icv,MI_ICV_NORM_MIN,&min)
 		miicv_inqdbl(self.icv,MI_ICV_NORM_MIN,&max)
-#		print min
-#		print max
+		self.min = min
+		self.max = max
 		
 		cdef int mdatatype
 		cdef char sigd[10]
