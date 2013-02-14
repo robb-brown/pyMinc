@@ -126,6 +126,7 @@ class mincFile(object):
 		typesize = -1
 
 		datatype = ncTypeToNumpy[mdatatype][sigd == MI_SIGNED]
+		self.datatype = datatype
 		
 		miset_coords(ndims,0,<long*>origin.data)
 		cdef np.ndarray data = np.zeros(dimLengths,datatype)
