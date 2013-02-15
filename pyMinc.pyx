@@ -14,7 +14,7 @@ ncTypeToNumpy = {	NC_BYTE : {True:np.int8, False:np.uint8},
 					NC_DOUBLE : {True:np.float64, False:np.float64},
 				}
 
-cdef class mincFile(object):
+class mincFile(object):
 
 	def __init__(self,fname=None):
 		self.fname = fname
@@ -27,7 +27,7 @@ cdef class mincFile(object):
 		if (fname):
 			self.loadFile()
 
-	cdef setupICV(self):
+	def setupICV(self):
 		outputType = NC_FLOAT
 		outputSigned = 1
 		cdef nc_type mdatatype = -1
