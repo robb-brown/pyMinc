@@ -7,10 +7,10 @@ sourcefiles = ['pyMinc.c']
 
 ext_modules = [
 	Extension("mincFile", sourcefiles,
-				libraries=['minc2','netcdf','curl'],
-				include_dirs = ['/usr/local/include','/usr/local/bic/include'],
-				library_dirs = ['/usr/lib','/usr/local/lib','/usr/local/bic/lib'],
-						)
+		libraries=['minc2','volume_io2','netcdf','curl'],
+		include_dirs = ['/usr/local/include','/usr/local/minc-toolkit/include'],
+		library_dirs = ['/usr/lib','/usr/local/lib','/usr/local/minc-toolkit/lib'],
+			)
 	]
 
 setup(
