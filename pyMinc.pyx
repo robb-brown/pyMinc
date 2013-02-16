@@ -5,6 +5,10 @@ from pyMinc cimport *
 
 from mincConstants import *
 
+from cpython.ref cimport PyObject
+
+np.import_array()
+
 
 ncTypeToNumpy = {	NC_BYTE : {True:np.int8, False:np.uint8},
 					NC_CHAR : {True:np.int8, False:np.uint8},
@@ -12,7 +16,17 @@ ncTypeToNumpy = {	NC_BYTE : {True:np.int8, False:np.uint8},
 					NC_INT : {True:np.int32, False:np.uint32},
 					NC_FLOAT : {True:np.float32, False:np.float32},
 					NC_DOUBLE : {True:np.float64, False:np.float64},
-				}
+				}		
+				
+#cdef numpyScalarTypeNumber(obj):
+#	ArrayType *a
+#	PyArray_Descr* dtype
+#	if (not PyArray_DescrConverter(obj, dtype)):
+#		return np.NPY_NOTYPE
+#	typeNum = dtype.type_num
+#	Py_DECREF(dtype)
+#	return typeNum
+
 
 class mincFile(object):
 
@@ -157,3 +171,120 @@ class mincFile(object):
 
 	def getNumpyArray(self):
 		return self.data
+		
+		
+		
+		
+cdef class VIOVolume:
+	
+	cdef VIO_Volume volume
+	cdef minc_input_options *options
+		
+	def __init__(self):
+		pass
+
+
+	cdef alloc_volume_data(self,VIO_Volume volume):
+		cdef unsigned int data_size = get_volume_total_n_voxels( volume )
+		cdef unsigned int type_size = get_type_size( get_volume_data_type( volume ) )
+		volume.is_cached_volume = False
+#		self.alloc_multidim_array(volume.array)
+	    
+		
+		
+	def getVolume(self):
+		cdef int i
+		volume = {}
+		volume['dtype'] = ncTypeToNumpy[self.volume.nc_data_type][self.volume.signed_flag]
+		volume['min'] = self.volume.voxel_min
+		volume['max'] = self.volume.voxel_max
+		volume['dimensions'] = self.volume.array.n_dimensions
+		volume['names'] = []
+		cdef np.ndarray tempArr = np.zeros(3,np.int64)
+		volume['shape'] = tempArr
+		volume['spacing'] = []
+		volume['starts'] = []
+		volume['cosines'] = []
+		for i in range(0,volume['dimensions']):
+			volume['shape'][i] = self.volume.array.sizes[i]
+			volume['names'].append(self.volume.dimension_names[i])
+			volume['spacing'].append(self.volume.separations[i])
+			volume['starts'].append(self.volume.starts[i])
+			volume['cosines'].append([])
+			for m in range(0,VIO_N_DIMENSIONS):
+				volume['cosines'][i].append(self.volume.direction_cosines[i][m])
+		
+		cdef void *dataPtr = NULL
+		GET_VOXEL_PTR(dataPtr,self.volume,0,0,0,0,0)
+		
+		typenum = np.dtype(volume['dtype']).num
+
+		cdef np.ndarray data = np.PyArray_SimpleNewFromData(volume['dimensions'],<int *>tempArr.data,typenum,dataPtr)
+		
+		print np.shape(data)
+		print volume['shape']
+
+		# USE THIS TO COPY THE DATA TO PYTHON INSTEAD OF JUST WRAPPING A NUMPY ARRAY AROUND IT
+#		np.zeros(np.product(volume['shape']),volume['dtype'])
+#		count=data.dtype.itemsize*np.product(volume['shape'])
+#		memcpy(<char*>data.data,<char*>dataPtr,count)
+		volume['data'] = data
+		
+		return volume
+		
+		
+	def invent(self):
+		cdef VIO_Volume vol = NULL
+		cdef char **dim_names
+		cdef np.ndarray sizes = np.array([10,10,10],np.int32)
+		
+		dim_names = get_default_dim_names(3)
+		ALLOC(vol,1)
+		vol = create_volume(3,dim_names,NC_BYTE,False,0,255)
+		set_volume_sizes(vol,<int*>(sizes.data))
+		
+		voxels = get_volume_total_n_voxels(vol)
+		size = get_type_size(get_volume_data_type(vol))
+		dtype = ncTypeToNumpy[vol.nc_data_type][vol.signed_flag]
+		
+		alloc_volume_data(vol)
+
+		cdef np.ndarray arr = np.zeros(sizes,dtype)
+		arr[0,0,0] = 1; arr[5,5,5] = 2; arr[9,9,9] = 3
+		cdef void *dataPtr = NULL
+		GET_VOXEL_PTR(dataPtr,vol,0,0,0,0,0)
+		
+		memcpy(<char*>dataPtr,<char*>arr.data,1000)
+		
+#		set_volume_separations
+#		set_volume_starts
+#		set_volume_type
+		
+		status = output_volume("/temp/scrap.mnc",NC_BYTE,False,0,0,vol,NULL,NULL)
+		return status
+		
+		
+		
+	def read(self,fname,dtype=NC_UNSPECIFIED,dsigned=False,dmin=0,dmax=255,create=True):
+		cdef VIO_Volume vol = NULL
+		cdef minc_input_options *options = NULL
+
+		ALLOC(vol,1)
+		dtype = MI_ORIGINAL_TYPE; dsigned = False
+		status = input_volume(fname,0,NULL,dtype,dsigned,dmin,dmax,create,&vol,options)
+		self.volume = vol
+		self.options = options
+		
+		status = output_volume("/temp/scrap.mnc",dtype,dsigned,dmin,dmax,vol,NULL,NULL)
+		
+		return status
+		
+		
+		
+		
+		
+		
+def minctracc(source,target,arguments):
+	
+		
+		
