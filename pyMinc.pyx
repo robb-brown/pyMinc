@@ -1,11 +1,13 @@
 import numpy as np
 cimport numpy as np
 
-from pyMinc cimport *
-
-from mincConstants import *
-
 from cpython.ref cimport PyObject
+from cython import PyString_AsString
+
+from builtins cimport *
+from netCDF cimport *
+from libminc cimport *
+from volume_io cimport *
 
 np.import_array()
 
@@ -26,6 +28,7 @@ ncTypeToNumpy = {	NC_BYTE : {True:np.int8, False:np.uint8},
 #	typeNum = dtype.type_num
 #	Py_DECREF(dtype)
 #	return typeNum
+
 
 
 class mincFile(object):
@@ -280,11 +283,5 @@ cdef class VIOVolume:
 		return status
 		
 		
-		
-		
-		
-		
-def minctracc(source,target,arguments):
-	
 		
 		
