@@ -19,16 +19,9 @@ ncTypeToNumpy = {	NC_BYTE : {True:np.int8, False:np.uint8},
 					NC_DOUBLE : {True:np.float64, False:np.float64},
 				}		
 				
-#cdef numpyScalarTypeNumber(obj):
-#	ArrayType *a
-#	PyArray_Descr* dtype
-#	if (not PyArray_DescrConverter(obj, dtype)):
-#		return np.NPY_NOTYPE
-#	typeNum = dtype.type_num
-#	Py_DECREF(dtype)
-#	return typeNum
 
 
+# libminc MINC file reading
 
 class mincFile(object):
 
@@ -177,6 +170,7 @@ class mincFile(object):
 		
 		
 		
+# VIO_Volume wrapper		
 cdef class VIOVolume:
 	
 	cdef VIO_Volume volume
@@ -191,49 +185,7 @@ cdef class VIOVolume:
 		cdef unsigned int type_size = get_type_size( get_volume_data_type( volume ) )
 		volume.is_cached_volume = False
 #		self.alloc_multidim_array(volume.array)
-	    
-		
-		
-	def getVolume(self):
-		cdef int i
-		volume = {}
-		volume['dtype'] = ncTypeToNumpy[self.volume.nc_data_type][self.volume.signed_flag]
-		volume['min'] = self.volume.voxel_min
-		volume['max'] = self.volume.voxel_max
-		volume['dimensions'] = self.volume.array.n_dimensions
-		volume['names'] = []
-		cdef np.ndarray tempArr = np.zeros(3,np.int64)
-		volume['shape'] = tempArr
-		volume['spacing'] = []
-		volume['starts'] = []
-		volume['cosines'] = []
-		for i in range(0,volume['dimensions']):
-			volume['shape'][i] = self.volume.array.sizes[i]
-			volume['names'].append(self.volume.dimension_names[i])
-			volume['spacing'].append(self.volume.separations[i])
-			volume['starts'].append(self.volume.starts[i])
-			volume['cosines'].append([])
-			for m in range(0,VIO_N_DIMENSIONS):
-				volume['cosines'][i].append(self.volume.direction_cosines[i][m])
-		
-		cdef void *dataPtr = NULL
-		GET_VOXEL_PTR(dataPtr,self.volume,0,0,0,0,0)
-		
-		typenum = np.dtype(volume['dtype']).num
-
-		cdef np.ndarray data = np.PyArray_SimpleNewFromData(volume['dimensions'],<int *>tempArr.data,typenum,dataPtr)
-		
-		print np.shape(data)
-		print volume['shape']
-
-		# USE THIS TO COPY THE DATA TO PYTHON INSTEAD OF JUST WRAPPING A NUMPY ARRAY AROUND IT
-#		np.zeros(np.product(volume['shape']),volume['dtype'])
-#		count=data.dtype.itemsize*np.product(volume['shape'])
-#		memcpy(<char*>data.data,<char*>dataPtr,count)
-		volume['data'] = data
-		
-		return volume
-		
+	    		
 		
 	def invent(self):
 		cdef VIO_Volume vol = NULL
@@ -281,6 +233,49 @@ cdef class VIOVolume:
 		
 		return status
 		
-		
+	property volumePtr:
+		def __get__(self):
+			return self.volume
+
+	property data:
+		def __get__(self):
+			cdef int i
+			volume = {}
+			volume['dtype'] = ncTypeToNumpy[self.volume.nc_data_type][self.volume.signed_flag]
+			volume['min'] = self.volume.voxel_min
+			volume['max'] = self.volume.voxel_max
+			volume['dimensions'] = self.volume.array.n_dimensions
+			volume['names'] = []
+			cdef np.ndarray tempArr = np.zeros(3,np.int64)
+			volume['shape'] = tempArr
+			volume['spacing'] = []
+			volume['starts'] = []
+			volume['cosines'] = []
+			for i in range(0,volume['dimensions']):
+				volume['shape'][i] = self.volume.array.sizes[i]
+				volume['names'].append(self.volume.dimension_names[i])
+				volume['spacing'].append(self.volume.separations[i])
+				volume['starts'].append(self.volume.starts[i])
+				volume['cosines'].append([])
+				for m in range(0,VIO_N_DIMENSIONS):
+					volume['cosines'][i].append(self.volume.direction_cosines[i][m])
+
+			cdef void *dataPtr = NULL
+			GET_VOXEL_PTR(dataPtr,self.volume,0,0,0,0,0)
+
+			typenum = np.dtype(volume['dtype']).num
+
+			cdef np.ndarray data = np.PyArray_SimpleNewFromData(volume['dimensions'],<int *>tempArr.data,typenum,dataPtr)
+
+			print np.shape(data)
+			print volume['shape']
+
+			# USE THIS TO COPY THE DATA TO PYTHON INSTEAD OF JUST WRAPPING A NUMPY ARRAY AROUND IT
+	#		np.zeros(np.product(volume['shape']),volume['dtype'])
+	#		count=data.dtype.itemsize*np.product(volume['shape'])
+	#		memcpy(<char*>data.data,<char*>dataPtr,count)
+			volume['data'] = data
+
+			return volume
 		
 		
