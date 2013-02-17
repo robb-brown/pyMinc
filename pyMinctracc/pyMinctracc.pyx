@@ -3,11 +3,10 @@ cimport numpy as np
 
 from pyMinctracc cimport *
 from builtins cimport *
-from cython import PyString_AsString
 
 class Minctracc(object):
 	
-	def exectute(command):
+	def minctracc(self,command):
 		argv = command.split(' ')
 		argc = len(argv)
 		cdef char **strings = <char**>malloc(argc*sizeof(char*))

@@ -3,24 +3,23 @@ from distutils.extension import Extension
 from Cython.Distutils import build_ext
 import numpy
 
-# temp
 
-sourcefiles = ['pyMinc.pyx','pyMinctracc.pyx']
+libraries = ['minc2','volume_io2','netcdf','hdf5','curl','minctracc']
+include_dirs = ['.','/usr/local/include','/usr/local/minc-toolkit/include']
+library_dirs = ['.','/usr/lib','/usr/local/lib','/usr/local/minc-toolkit/lib']
 
-ext_modules = [
-	Extension("mincFile", ['pyMinc.pyx'],
-						libraries=['minc2','volume_io2','netcdf','hdf5','curl','minctracc'],
-						include_dirs = ['.','/usr/local/include','/usr/local/minc-toolkit/include'],
-						library_dirs = ['.','/usr/lib','/usr/local/lib','/usr/local/minc-toolkit/lib'],
-						)
-	]
-	
-ext_modules = [
-	Extension("mincFile", ['pyMinctracc.pyx'],
-						libraries=['minc2','volume_io2','netcdf','hdf5','curl','minctracc'],
-						include_dirs = ['.','/usr/local/include','/usr/local/minc-toolkit/include'],
-						library_dirs = ['.','/usr/lib','/usr/local/lib','/usr/local/minc-toolkit/lib'],
-						)
+extensions = [
+	Extension("pyMinc", ['pyMinc.pyx'],
+						libraries=libraries,
+						include_dirs = include_dirs,
+						library_dirs = library_dirs,
+						),
+						
+	Extension("pyMinctracc", ['pyMinctracc/pyMinctracc.pyx'],
+						libraries=libraries,
+						include_dirs = include_dirs,
+						library_dirs = library_dirs,
+						),
 ]
 
 setup(
@@ -30,7 +29,8 @@ setup(
 	author = 'Robert Brown',
 	author_email="robb@robbtech.com",
 	url='http://www.robbtech.com',
-  cmdclass = {'build_ext': build_ext},
+	packages = ['pyMinc','pyMinctracc'],
 	include_dirs = [numpy.get_include()],
-  ext_modules = ext_modules
+	ext_modules = extensions,
+  	cmdclass = {'build_ext': build_ext},
 )

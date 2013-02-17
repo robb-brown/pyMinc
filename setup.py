@@ -23,5 +23,5 @@ setup(
 	include_dirs = [numpy.get_include()],
 	ext_package = 'pyMinc',
   	ext_modules = ext_modules,
-	py_modules = ['pyMinc.examples','pyMinc.mincConstants']
+	py_modules = ['pyMinc.examples']
 )
