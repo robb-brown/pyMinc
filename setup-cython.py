@@ -29,7 +29,7 @@ setup(
 	author = 'Robert Brown',
 	author_email="robb@robbtech.com",
 	url='http://www.robbtech.com',
-	packages = ['pyMinc','pyMinctracc'],
+	packages = ['pyMinctracc'],
 	include_dirs = [numpy.get_include()],
 	ext_modules = extensions,
   	cmdclass = {'build_ext': build_ext},
