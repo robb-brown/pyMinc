@@ -5,4 +5,3 @@ setup-cython.py
 setup.py
 pyMinc/__init__.py
 pyMinc/examples.py
-pyMinc/mincConstants.py

@@ -1,1 +1,0 @@
-../mincConstants.py

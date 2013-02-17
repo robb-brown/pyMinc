@@ -2,7 +2,6 @@ import numpy as np
 cimport numpy as np
 
 from cpython.ref cimport PyObject
-from cython import PyString_AsString
 
 from builtins cimport *
 from netCDF cimport *
