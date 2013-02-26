@@ -2,6 +2,7 @@ import numpy as np
 cimport numpy as np
 
 from cpython.ref cimport PyObject
+from cpython cimport PyCapsule, PyCapsule_New, PyCapsule_GetPointer
 
 from builtins cimport *
 from netCDF cimport *
@@ -17,7 +18,14 @@ ncTypeToNumpy = {	NC_BYTE : {True:np.int8, False:np.uint8},
 					NC_INT : {True:np.int32, False:np.uint32},
 					NC_FLOAT : {True:np.float32, False:np.float32},
 					NC_DOUBLE : {True:np.float64, False:np.float64},
-				}		
+				}
+				
+numpyToNCType = {	np.int8	: (NC_BYTE,True), 	np.uint8	: (NC_BYTE,False), 
+					np.int16 : (NC_SHORT,True), 	np.uint16	: (NC_SHORT,False), 
+					np.int32 : (NC_INT,True), 	np.uint32	: (NC_INT,False), 
+					np.float32 : (NC_FLOAT,True),
+					np.float64 : (NC_DOUBLE,True),
+}
 				
 
 
@@ -169,16 +177,27 @@ class mincFile(object):
 		
 		
 		
-		
 # VIO_Volume wrapper		
 cdef class VIOVolume:
 	
 	cdef VIO_Volume volume
 	cdef minc_input_options *options
+	cdef int owner
 		
 	def __init__(self):
-		pass
-
+		self.owner = True
+				
+	def __del__(self):
+		if not self.volume == NULL and self.owner:
+			FREE(self.volume)
+		if not self.options == NULL:
+			FREE(self.options)
+			
+			
+	cdef setVolumePtr(self,VIO_Volume vol,int owner=1):
+		self.volume = vol
+		self.owner = owner
+		
 
 	cdef alloc_volume_data(self,VIO_Volume volume):
 		cdef unsigned int data_size = get_volume_total_n_voxels( volume )
@@ -201,7 +220,7 @@ cdef class VIOVolume:
 		size = get_type_size(get_volume_data_type(vol))
 		dtype = ncTypeToNumpy[vol.nc_data_type][vol.signed_flag]
 		
-		alloc_volume_data(vol)
+#		alloc_volume_data(vol)
 
 		cdef np.ndarray arr = np.zeros(sizes,dtype)
 		arr[0,0,0] = 1; arr[5,5,5] = 2; arr[9,9,9] = 3
@@ -218,26 +237,46 @@ cdef class VIOVolume:
 		return status
 		
 		
+	def write(self,fname):
+		type = self.volume.nc_data_type
+		signed = self.volume.signed_flag
+		status = output_volume(fname,type,signed,0,0,self.volume,NULL,NULL)
 		
-	def read(self,fname,dtype=NC_UNSPECIFIED,dsigned=False,dmin=0,dmax=255,create=True):
+		
+	def read(self,fname,dtype=MI_ORIGINAL_TYPE,dsigned=False,dmin=0,dmax=255,create=True):
 		cdef VIO_Volume vol = NULL
 		cdef minc_input_options *options = NULL
-
 		ALLOC(vol,1)
-		dtype = MI_ORIGINAL_TYPE; dsigned = False
 		status = input_volume(fname,0,NULL,dtype,dsigned,dmin,dmax,create,&vol,options)
 		self.volume = vol
-		self.options = options
-		
-		status = output_volume("/temp/scrap.mnc",dtype,dsigned,dmin,dmax,vol,NULL,NULL)
-		
+		self.options = options		
 		return status
+		
+		
+	def getVoxelToWorldTransform(self,cosines=False):
+		cdef VIO_General_transform *xfm = NULL
+		ALLOC(xfm,1)
+		info = self.metaData
+		compute_world_transform(self.volume.spatial_axes,self.volume.separations,self.volume.direction_cosines,self.volume.starts,xfm)
+		transform = VIOGeneralTransform(); transform.setTransformPtr(xfm)
+		return transform
+		
+		
+	property voxelToWorldTransform:
+		def __get__(self):
+			cdef VIO_General_transform *xfm = NULL
+			xfm = get_voxel_to_world_transform(self.volume)
+			transform = VIOGeneralTransform()
+			transform.setTransformPtr(xfm); transform.owner = False
+			return transform
+		
 		
 	property volumePtr:
 		def __get__(self):
-			return self.volume
+			return PyCapsule_New(<void *>self.volume, NULL, NULL)
+			
 
-	property data:
+	property metadata:
 		def __get__(self):
 			cdef int i
 			volume = {}
@@ -251,31 +290,106 @@ cdef class VIOVolume:
 			volume['spacing'] = []
 			volume['starts'] = []
 			volume['cosines'] = []
+			volume['spatialAxes'] = []
 			for i in range(0,volume['dimensions']):
 				volume['shape'][i] = self.volume.array.sizes[i]
 				volume['names'].append(self.volume.dimension_names[i])
 				volume['spacing'].append(self.volume.separations[i])
 				volume['starts'].append(self.volume.starts[i])
 				volume['cosines'].append([])
+				volume['spatialAxes'].append(self.volume.spatial_axes[i])
 				for m in range(0,VIO_N_DIMENSIONS):
 					volume['cosines'][i].append(self.volume.direction_cosines[i][m])
-
+			return volume			
+			
+			
+	property data:
+		def __get__(self):
+			cdef int i
+			volume = self.metadata
 			cdef void *dataPtr = NULL
+			cdef np.ndarray tempArr = np.zeros(3,np.int64)
 			GET_VOXEL_PTR(dataPtr,self.volume,0,0,0,0,0)
-
 			typenum = np.dtype(volume['dtype']).num
-
-			cdef np.ndarray data = np.PyArray_SimpleNewFromData(volume['dimensions'],<int *>tempArr.data,typenum,dataPtr)
-
-			print np.shape(data)
-			print volume['shape']
+			for i in range(0,volume['dimensions']):
+				tempArr[i] = self.volume.array.sizes[i]
+			cdef np.ndarray data = np.PyArray_SimpleNewFromData(volume['dimensions'],<np.npy_intp*>tempArr.data,typenum,dataPtr)
 
 			# USE THIS TO COPY THE DATA TO PYTHON INSTEAD OF JUST WRAPPING A NUMPY ARRAY AROUND IT
 	#		np.zeros(np.product(volume['shape']),volume['dtype'])
 	#		count=data.dtype.itemsize*np.product(volume['shape'])
 	#		memcpy(<char*>data.data,<char*>dataPtr,count)
-			volume['data'] = data
 
-			return volume
+			return data
 		
 		
+# VIO_General_transform wrapper		
+cdef class VIOGeneralTransform:
+
+	cdef VIO_General_transform *transform
+	cdef int owner
+
+
+	def __init__(self,ptr=None,owner=True):
+		if not ptr == None:
+			self.transform = <VIO_General_transform *>PyCapsule_GetPointer(ptr,NULL)
+		self.owner = owner
+
+
+	def __del__(self):
+		if not self.transform == NULL and self.owner:
+			FREE(self.transform)
+			
+	
+	cdef setTransformPtr(self,VIO_General_transform *ptr,int owner=1):
+		self.transform = ptr
+		self.owner = owner
+			
+
+	def write(self,fname,comments=''):
+		status = output_transform_file(fname,comments,self.transform)
+		return status
+
+
+	def read(self,fname):
+		cdef VIO_General_transform *xfm = NULL
+		ALLOC(xfm,1)
+		status = input_transform_file(fname,xfm)
+		self.transform = xfm
+		return status
+		
+	
+#	property transforms:
+#		def __get__(self):
+#			if self.transform.type == CONCATENATED_TRANSFORM:	
+#				transforms = []
+#				for i in range(0,self.transform.n_transforms):
+#					xfm = VIOGeneralTransform(); xfm.setTransformPtr(self.transform.transforms[i])
+#					transforms.append(xfm)
+#			else:
+#				return [self]
+			
+			
+	property transform:
+		def __get__(self):
+			cdef np.ndarray xfm = np.zeros((4,4),np.float64)
+			if self.transform.type == CONCATENATED_TRANSFORM:
+				transforms = self.transforms
+				return [i.transform for i in transforms]
+			elif self.transform.type == LINEAR:
+				memcpy(<char*>xfm.data,<char*>self.transform.linear_transform.m[0],16*8)				
+				return xfm.T
+			elif self.transform.type == GRID_TRANSFORM:
+				grid = VIOVolume();
+				grid.setVolumePtr(<VIO_Volume>self.transform.displacement_volume,0)
+				return grid
+
+
+	property transformPtr:
+		def __get__(self):
+			return PyCapsule_New(<void *>self.transform, NULL, NULL)
+		
+		def __set__(self,ptr):
+			self.transform = <VIO_General_transform *>PyCapsule_GetPointer(ptr,NULL)
+	
+
