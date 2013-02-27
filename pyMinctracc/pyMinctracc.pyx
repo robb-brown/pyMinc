@@ -5,6 +5,7 @@ from pyMinctracc cimport *
 from builtins cimport *
 from volume_io cimport VIO_Volume
 
+
 class Minctracc(object):
 	
 	def minctracc(self,source,target,sourceMask=None,targetMask=None,initialXFM=None,command=''):
@@ -19,10 +20,10 @@ class Minctracc(object):
 		cdef VIO_General_transform *final = NULL
 		cdef VIO_Volume sourceC, targetC, sourceMaskC, targetMaskC = NULL
 		
-		sourceC = <VIO_Volume>source.volumePtr; targetC = <VIO_Volume>target.volumePtr
+		sourceC = source.getVolumePtr(); targetC = target.getVolumePtr()
 		
-		sourceC = <VIO_Volume>sourceMask.volumePtr if sourceMask else NULL
-		targetC = <VIO_Volume>targetMask.volumePtr if targetMask else NULL
+		sourceC = sourceMask.getVolumePtr() if sourceMask else NULL
+		targetC = targetMask.getVolumePtr() if targetMask else NULL
 		
 		finalXFM = minctracc(sourceC,targetC,sourceMaskC,targetMaskC,initial,final,argc,strings)
 		
