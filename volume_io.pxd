@@ -113,6 +113,18 @@ cdef extern from "volume_io.h":
 
 		int                         n_transforms
 		VIO_General_transform    *transforms
+		
+	
+	# vol_io_prototypes.h
+	VIO_Status  output_transform_file(
+	    char*              filename,
+	    char*              comments,
+	    VIO_General_transform   *transform )
+
+	VIO_Status  input_transform_file(
+	    char*              filename,
+	    VIO_General_transform   *transform )
+	
 
 
 	# multidim.h
@@ -233,6 +245,8 @@ cdef extern from "volume_io.h":
 	
 
 	void ALLOC(void *ptr, int N)
+	
+	void FREE(void *ptr)
 	
 	char** get_default_dim_names(int    n_dimensions )
 
