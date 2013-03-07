@@ -4,14 +4,17 @@ import numpy
 
 
 sourcefiles = ['pyMinc.c','pyMinctracc.c']
+libraries = ['minc2','volume_io2','netcdf','hdf5','curl','minctracc']
+include_dirs = ['.','pyMinctracc','/usr/local/include','/usr/local/minc-toolkit/include']
+library_dirs = ['.','pyMinctracc','/usr/lib','/usr/local/lib','/usr/local/minc-toolkit/lib']
 
 ext_modules = [
-	Extension("mincFile", sourcefiles,
-		libraries=['minc2','volume_io2','netcdf','hdf5','curl','minctracc'],
-		include_dirs = ['.','pyMinctracc','/usr/local/include','/usr/local/minc-toolkit/include'],
-		library_dirs = ['.','pyMinctracc','/usr/lib','/usr/local/lib','/usr/local/minc-toolkit/lib'],
-			)
-	]
+	Extension("mincFile", ['pyMinc.c','pyMinctracc/pyMinctracc.c'],
+		libraries=libraries,
+		include_dirs = include_dirs,
+		library_dirs = library_dirs,
+	)
+]
 
 setup(
   name = 'pyMinc',
