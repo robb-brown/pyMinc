@@ -2,7 +2,11 @@ import numpy as np
 cimport numpy as np
 
 from cpython.ref cimport PyObject
+<<<<<<< HEAD
+from cpython cimport PyCapsule
+=======
 from cpython cimport PyCapsule, PyCapsule_New, PyCapsule_GetPointer
+>>>>>>> c82a5c7e2c183df37f1692c0d3b1770de5ff0180
 
 from builtins cimport *
 from netCDF cimport *
@@ -272,9 +276,14 @@ cdef class VIOVolume:
 		
 		
 	property volumePtr:
+<<<<<<< HEAD
+	def __get__(self):
+		return PyCapsule_New(<void *>self.volume, NULL, NULL)
+=======
 		def __get__(self):
 			return PyCapsule_New(<void *>self.volume, NULL, NULL)
 			
+>>>>>>> c82a5c7e2c183df37f1692c0d3b1770de5ff0180
 
 	property metadata:
 		def __get__(self):
