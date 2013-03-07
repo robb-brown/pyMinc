@@ -5,6 +5,7 @@ from pyMinctracc import *
 from pylab import *
 from time import time
 from scipy.ndimage.interpolation import *
+from scipy.ndimage import *
 
 sourceF = '/temp/CIS-B_001-HSC-1_pt_00001_v02_t1g.mnc.gz'
 targetF = '/temp/icbm152_sym_t1w.mnc.gz'
@@ -16,8 +17,8 @@ targetF = '/temp/icbm152_sym_t1w.mnc.gz'
 #imshow(d[54])
 #io.invent()
 
-source = VIOVolume(); source.read(sourceF)
-target = VIOVolume(); target.read(targetF)
+source = VIOVolume(sourceF,type=float32)
+target = VIOVolume(targetF,type=float32)
 
 m = Minctracc()
 
@@ -34,13 +35,39 @@ if 0:			# Time comparison
 	print "\nSimplex took %0.2fs.  BFGS took %0.2fs." % (t2-t1,t4-t3)
 
 
-linear = m.minctracc(source,target,initialXFM=None,transformType='lsq9',debug=False)
-linear.write('/temp/linear.xfm')
-nonlinear16 = m.minctracc(source,target,initialXFM=linear,transformType='nonlinear',step=[16.0,16.0,16.0],debug=False)
-nonlinear8 = m.minctracc(source,target,initialXFM=nonlinear16,transformType='nonlinear',step=[8.0,8.0,8.0],debug=False)
-nonlinear4 = m.minctracc(source,target,initialXFM=nonlinear8,transformType='nonlinear',step=[4.0,4.0,4.0],debug=False)
+sourceMeta = source.metadata
+targetMeta = target.metadata
+sourceArgs = {'spacing':sourceMeta['spacing'],'starts':sourceMeta['starts']}
+targetArgs = {'spacing':targetMeta['spacing'],'starts':targetMeta['starts']}
+
+source16 = VIOVolume(filters.uniform_filter(source.data,size=16,mode='constant'),**sourceArgs)
+source8 = VIOVolume(filters.uniform_filter(source.data,size=8,mode='constant'),**sourceArgs)
+source4 = VIOVolume(filters.uniform_filter(source.data,size=4,mode='constant'),**sourceArgs)
+target16 = VIOVolume(filters.uniform_filter(target.data,size=16,mode='constant'),**targetArgs)
+target8 = VIOVolume(filters.uniform_filter(target.data,size=8,mode='constant'),**targetArgs)
+target4 = VIOVolume(filters.uniform_filter(target.data,size=4,mode='constant'),**targetArgs)
 
 
+t1 = time()
+print 'Doing linear registration'
+#linear = VIOGeneralTransform('/temp/linear.xfm')
+linear = m.minctracc(source4,target4,initialXFM=None,transformType='lsq12',debug=False)
+t2 = time()
+print 'Doing non linear 16 registration'
+nonlinear16 = m.minctracc(source4,target4,initialXFM=linear,transformType='nonlinear',step=[16.0,16.0,16.0],debug=False)
+t3 = time()
+print 'Doing non linear 8 registration'
+nonlinear8 = m.minctracc(source8,target8,initialXFM=nonlinear16,transformType='nonlinear',step=[8.0,8.0,8.0],debug=False)
+t4 = time()
+print 'Doing non linear 4 registration'
+nonlinear4 = m.minctracc(source4,target4,initialXFM=nonlinear8,transformType='nonlinear',step=[4.0,4.0,4.0],debug=False)
+t5 = time()
+
+print "Registration took: "
+print "	Linear: %0.2f s" % (t2-t1)
+print "	Nonlinear 16: %0.2f s" % (t3-t2)
+print "	Nonlinear 8: %0.2f s" % (t4-t3)
+print "	Nonlinear 4: %0.2f s" % (t5-t4)
 
 
 
