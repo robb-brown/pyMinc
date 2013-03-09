@@ -57,6 +57,10 @@ cdef extern from "volume_io.h":
 		VIO_Point_coord_type   coords[VIO_N_DIMENSIONS]
 
 
+
+
+
+
 	# transforms.h
 	ctypedef  double  VIO_Transform_elem_type
 	
@@ -114,7 +118,32 @@ cdef extern from "volume_io.h":
 		int                         n_transforms
 		VIO_General_transform    *transforms
 		
+		
+	int  get_n_concated_transforms(VIO_General_transform   *transform )
 	
+	void  general_transform_point(
+		VIO_General_transform   *transform,
+		VIO_Real                x,
+		VIO_Real                y,
+		VIO_Real                z,
+		VIO_Real                *x_transformed,
+		VIO_Real                *y_transformed,
+		VIO_Real                *z_transformed )
+	
+	void  transform_or_invert_point(
+		VIO_General_transform   *transform,
+		VIO_BOOL             inverse_flag,
+		VIO_Real                x,
+		VIO_Real                y,
+		VIO_Real                z,
+		VIO_Real                *x_transformed,
+		VIO_Real                *y_transformed,
+		VIO_Real                *z_transformed )
+		
+		
+		
+		
+		
 	# vol_io_prototypes.h
 	VIO_Status  output_transform_file(
 	    char*              filename,

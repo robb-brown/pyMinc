@@ -2,12 +2,13 @@ import numpy as np
 cimport numpy as np
 
 from cpython.ref cimport PyObject
-from cpython cimport PyCapsule, PyCapsule_New, PyCapsule_GetPointer
+from cpython cimport PyCapsule, PyCapsule_New, PyCapsule_GetPointer, PyCapsule_IsValid
 
 from builtins cimport *
 from netCDF cimport *
 from libminc cimport *
 from volume_io cimport *
+import traceback
 
 np.import_array()
 
@@ -190,7 +191,7 @@ cdef class VIOVolume:
 			if data.__class__ == str:
 				self.read(data,**args)
 			else:
-				self.createWithData(data,args.get('spacing',None),args.get('starts',None))
+				self.createWithData(data,args.get('spacing',None),args.get('starts',None),args.get('names',None))
 				
 	def __del__(self):
 		if not self.volume == NULL and self.owner:
@@ -211,30 +212,37 @@ cdef class VIOVolume:
 #		self.alloc_multidim_array(volume.array)
 
 
-	cdef createWithData(self,np.ndarray data,spacing=None,starts=None):
+	cdef createWithData(self,np.ndarray data,spacing=None,starts=None,names=None):
 		cdef VIO_Volume vol = NULL
-		cdef char **dim_names
-		cdef np.ndarray vec3 #= np.array([0,0,0],np.int32)
+		cdef char **dim_names = NULL
+		cdef np.ndarray vec
+		
+		dimN = len(np.shape(data))
 
 		if spacing == None:
-			spacing = np.array([1.0,1.0,1.0],np.float64)
+			spacing = np.ones(dimN,np.float64)
 		else:
 			spacing = np.array(spacing,np.float64)
 
 		if starts == None:
-			starts = np.array([0.0,0.0,0.0],np.float64)
+			starts = np.zeros(dimN,np.float64)
 		else:
 			starts = np.array(starts,np.float64)
-
-		dim_names = get_default_dim_names(3)
+		
+		if names == None:
+			dim_names = get_default_dim_names(dimN)
+		else:
+			ALLOC(dim_names,dimN)
+			for i,s in enumerate(names):
+				dim_names[i] = s
 		type,signed = numpyToNCType[data.dtype.type]
 		
 		# Setup volume
 		ALLOC(vol,1)
-		vol = create_volume(3,dim_names,type,signed,data.min(),data.max())
-		vec3 = np.array(np.shape(data),np.int32); set_volume_sizes(vol,<int*>(vec3.data))
-		vec3 = spacing; set_volume_separations(vol,<VIO_Real*>(vec3.data))
-		vec3 = starts; set_volume_starts(vol,<VIO_Real*>(vec3.data))
+		vol = create_volume(dimN,dim_names,type,signed,data.min(),data.max())
+		vec = np.array(np.shape(data),np.int32); set_volume_sizes(vol,<int*>(vec.data))
+		vec = spacing; set_volume_separations(vol,<VIO_Real*>(vec.data))
+		vec = starts; set_volume_starts(vol,<VIO_Real*>(vec.data))
 		vol.voxel_to_world_transform_uptodate = False
 		alloc_volume_data(vol)
 		
@@ -309,6 +317,18 @@ cdef class VIOVolume:
 		compute_world_transform(self.volume.spatial_axes,self.volume.separations,self.volume.direction_cosines,self.volume.starts,xfm)
 		transform = VIOGeneralTransform(); transform.setTransformPtr(xfm)
 		return transform
+
+	
+	cdef transformPointFast(self,np.ndarray point,np.ndarray transformed):
+		convert_voxel_to_world(self.volume,<VIO_Real*>point.data,<VIO_Real*>transformed.data,<VIO_Real*>transformed.data+1,<VIO_Real*>transformed.data+2)
+
+
+	def transformPoint(self,point):
+		cdef np.ndarray point2 = np.array(point,np.float64)
+		cdef np.ndarray transformed = np.zeros(3,np.float64)
+		convert_voxel_to_world(self.volume,<VIO_Real*>point2.data,<VIO_Real*>transformed.data,<VIO_Real*>transformed.data+1,<VIO_Real*>transformed.data+2)
+		return transformed
+	
 		
 		
 	property voxelToWorldTransform:
@@ -370,7 +390,8 @@ cdef class VIOVolume:
 	#		memcpy(<char*>data.data,<char*>dataPtr,count)
 
 			return data
-					
+	
+
 		
 # VIO_General_transform wrapper		
 cdef class VIOGeneralTransform:
@@ -381,14 +402,44 @@ cdef class VIOGeneralTransform:
 
 	def __init__(self,ptr=None,owner=True):
 		if not ptr == None:
-			try:
-				if ptr.__class__ == str:
-					self.read(ptr)
-				else:
-					self.transform = <VIO_General_transform *>PyCapsule_GetPointer(ptr,NULL)
-			except:
+			if ptr.__class__ == str:
+				self.read(ptr)
+			elif PyCapsule_IsValid(ptr,NULL):
 				self.transform = <VIO_General_transform *>PyCapsule_GetPointer(ptr,NULL)
+			else:
+				ALLOC(self.transform,1)
+				self.setupTransform(self.transform,ptr)
 		self.owner = owner
+
+
+	cdef setupTransform(self,VIO_General_transform *xfmPtr,data):		
+		cdef VIO_Transform *ltransform = NULL
+		cdef np.ndarray xfm
+		cdef int i
+		if data.__class__ == VIOVolume:
+			xfmPtr.type = GRID_TRANSFORM
+			xfmPtr.inverse_flag = False
+			xfmPtr.displacement_volume = <VIO_Volume>PyCapsule_GetPointer(data.volumePtr,NULL)
+			xfmPtr.n_transforms = 1
+		elif np.shape(data) == (4,4):
+			xfmPtr.type = LINEAR
+			xfmPtr.inverse_flag = False
+			xfm = np.array(data,np.float64)
+			ALLOC(ltransform,1)
+			memcpy(<char*>ltransform.m[0],<char*>xfm.data,16*8)	
+			xfmPtr.linear_transform = ltransform
+			ALLOC(ltransform,1)
+			xfm = np.linalg.inv(xfm)
+			memcpy(<char*>ltransform.m[0],<char*>xfm.data,16*8)	
+			xfmPtr.inverse_linear_transform = ltransform
+			xfmPtr.n_transforms = 1
+		elif len(np.shape(data)) == 1:
+			xfmPtr.type = CONCATENATED_TRANSFORM
+			xfmPtr.inverse_flag = False
+			ALLOC(xfmPtr.transforms,len(data))
+			for i,x in enumerate(data):
+				self.setupTransform(xfmPtr.transforms+i,x.data)
+			xfmPtr.n_transforms = len(data)
 
 
 	def __del__(self):
@@ -413,6 +464,90 @@ cdef class VIOGeneralTransform:
 		self.transform = xfm
 		return status
 		
+		
+	cdef transformPointFast(self,np.ndarray point,np.ndarray transformed):
+		general_transform_point(self.transform,point.data[0],point.data[1],point.data[2],<VIO_Real*>transformed.data,<VIO_Real*>transformed.data+1,<VIO_Real*>transformed.data+2)
+		
+		
+	def transformPoint(self,point):
+		cdef np.ndarray transformed = np.zeros(3,np.float64)
+		cdef np.ndarray point2 = np.array(point,np.float64)
+		general_transform_point(self.transform,point2[0],point2[1],point2[2],<VIO_Real*>transformed.data,<VIO_Real*>transformed.data+1,<VIO_Real*>transformed.data+2)
+		return transformed
+		
+	
+	def getDeformation(self,invert=False):
+		cdef VIO_Volume vol
+		cdef VIO_General_transform *xfm
+		cdef VIO_Real vcoord[4], wcoord[3], wcoord_t[3], value
+		cdef np.ndarray data,output
+		cdef int x,y,z,v,invert_flag
+		
+		for i in self.transforms:
+			if i.transformType == 'grid':
+				vol = <VIO_Volume>PyCapsule_GetPointer(i.data.volumePtr,NULL)
+				data = i.data.data
+				shp = np.shape(data)
+				metadata = i.data.metadata
+				break
+		output = np.zeros(shp,np.float64)
+		print "Shape: %s" % `np.shape(output)`
+		xfm = self.transform
+		invert_flag = invert
+
+		vcoord[0] = 0.0
+		for x in range(0,shp[-1]):
+			for y in range(0,shp[-2]):
+				for z in range(0,shp[-3]):
+					vcoord[1] = z; vcoord[2] = y; vcoord[3] = x
+					convert_voxel_to_world(vol,vcoord,wcoord,wcoord+1,wcoord+2)
+					transform_or_invert_point(xfm,invert_flag,wcoord[0],wcoord[1],wcoord[2],wcoord_t,wcoord_t+1,wcoord_t+2)
+					for v in range(0,3):
+						value = wcoord_t[v] - wcoord[v]
+						output[v,z,y,x] = value
+
+		newVolume = VIOVolume(output,spacing=metadata['spacing'],starts=metadata['starts'],names=metadata['names'])
+		return newVolume
+		
+		
+	property inverse:
+		def __get__(self):
+			cdef VIO_Transform *temp = NULL
+			cdef VIO_General_transform *ntptr = NULL
+			if self.transform.type == GRID_TRANSFORM:
+				data = self.getDeformation(invert=True)
+				newTransform = VIOGeneralTransform(data)
+			elif self.transform.type == LINEAR:
+				newTransform = VIOGeneralTransform(self.data)
+				ntptr = <VIO_General_transform*>PyCapsule_GetPointer(newTransform.transformPtr,NULL)
+				temp = ntptr.linear_transform
+				ntptr.linear_transform = ntptr.inverse_linear_transform
+				ntptr.inverse_linear_transform = temp
+			elif self.transform.type == CONCATENATED_TRANSFORM:
+				xfms = [i.inverse for i in self.transforms]
+				newTransform = VIOGeneralTransform(xfms)
+			else:
+				print "I don't know how to handle this kind of transform"
+				newTransform = None
+			return newTransform
+	
+		
+	property transformType:
+		def __get__(self):
+			if self.transform.type == LINEAR:
+				return 'linear'
+			elif self.transform.type == GRID_TRANSFORM:
+				return 'grid'
+			elif self.transform.type == CONCATENATED_TRANSFORM:
+				return 'concatenated'
+			else:
+				return self.transform.type
+		
+		
+	property transformN:
+		def __get__(self):
+			return get_n_concated_transforms(self.transform)
+	
 	
 	property transforms:
 		def __get__(self):
@@ -426,12 +561,12 @@ cdef class VIOGeneralTransform:
 			return transforms
 			
 			
-	property transform:
+	property data:
 		def __get__(self):
 			cdef np.ndarray xfm = np.zeros((4,4),np.float64)
 			if self.transform.type == CONCATENATED_TRANSFORM:
 				transforms = self.transforms
-				return [i.transform for i in transforms]
+				return [i.data for i in transforms]
 			elif self.transform.type == LINEAR:
 				memcpy(<char*>xfm.data,<char*>self.transform.linear_transform.m[0],16*8)				
 				return xfm.T
@@ -447,5 +582,6 @@ cdef class VIOGeneralTransform:
 		
 		def __set__(self,ptr):
 			self.transform = <VIO_General_transform *>PyCapsule_GetPointer(ptr,NULL)
+
 	
 
