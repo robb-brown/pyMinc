@@ -402,10 +402,10 @@ cdef class VIOGeneralTransform:
 
 	def __init__(self,ptr=None,owner=True):
 		if not ptr == None:
-			if ptr.__class__ == str:
-				self.read(ptr)
-			elif PyCapsule_IsValid(ptr,NULL):
+			if PyCapsule_IsValid(ptr,NULL):
 				self.transform = <VIO_General_transform *>PyCapsule_GetPointer(ptr,NULL)
+			elif ptr.__class__ == str:
+				self.read(ptr)
 			else:
 				ALLOC(self.transform,1)
 				self.setupTransform(self.transform,ptr)

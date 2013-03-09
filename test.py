@@ -72,6 +72,8 @@ if 0:
 	
 	transform = nonlinear4
 	
+	transform.write('/temp/nonlinear.xfm')
+	
 else:
 	transform = VIOGeneralTransform('/temp/nonlinear.xfm')
 
@@ -121,9 +123,7 @@ linearResampled = affine_transform(im,total[0:3,0:3],offset=array(total)[0:3,3],
 linearResampled = transpose(linearResampled,target.metadata['spatialAxes'])
 
 
-
-# Nonlinear resampling
-if 0:
+if 1:
 	xfm = transform.transforms[1]
 	ixfm = xfm.inverse
 	deformation = xfm.data
@@ -131,11 +131,23 @@ if 0:
 	cxfm = VIOGeneralTransform([xfm,ixfm])
 	cdeformation = cxfm.getDeformation()
 
-	figure(5);
-	subplot(221); imshow(deformation.data[0,34]); colorbar()
-	subplot(222); imshow(ideformation.data[0,34]); colorbar()
-	subplot(223); imshow(cdeformation.data[0,34]); colorbar()
+deformationM = VIOVolume('/temp/nonlinear_grid_0.mnc')
+ideformationM = VIOVolume('/temp/nonlinearI_grid_0.mnc')
+cdeformationM = VIOVolume('/temp/concat_grid_0.mnc')
 
+figure(5);
+subplot(221); imshow(deformation.data[0,34],vmin=-30,vmax=30); colorbar()
+subplot(222); imshow(ideformation.data[0,34],vmin=-30,vmax=30); colorbar()
+subplot(223); imshow(cdeformation.data[0,34],vmin=-30,vmax=30); colorbar()
+
+figure(6);
+subplot(221); imshow(deformationM.data[0,34],vmin=-30,vmax=30); colorbar()
+subplot(222); imshow(ideformationM.data[0,34],vmin=-30,vmax=30); colorbar()
+subplot(223); imshow(cdeformationM.data[0,34],vmin=-30,vmax=30); colorbar()
+
+
+# Nonlinear resampling
+if 0:
 	s = 75
 	titles = ['Source','Target','Resampled Source (Linear)','Minc Resampled (Linear)']
 	for i,data in enumerate([source.data,target.data,linearResampled,mincResampled]):
