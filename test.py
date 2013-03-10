@@ -9,15 +9,48 @@ from scipy.ndimage import *
 import lingo.mincUtils as minc
 
 
+
+def linearResample(source,transform,like):
+	vol = source; target = like; xfm = transform
+	metadata = vol.metadata
+	im = transpose(vol.data,metadata['spatialAxes'])			# Transforms are stored as x,y,z so our image should be too
+	spacing = array(metadata['spacing'])[metadata['spatialAxes']]
+	starts = array(metadata['starts'])[metadata['spatialAxes']]
+	extents = array(metadata['shape'])[metadata['spatialAxes']]
+
+	# Get the (flipped) source to world transform
+	sourceToWorld = mat(minc.xfmFromParameters(translations=starts,scales=spacing))
+
+	# Get the target to world transform.  Note that this is assuming the atlas, which doesn't need to be flipped
+	targetToWorld = mat(target.voxelToWorldTransform.data)
+
+	# Total source voxel to target voxel transform, inverted
+	# It's important to multiply backwards, and don't forget about order of operations!
+	total = (targetToWorld.I*(xfm*sourceToWorld)).I
+
+	# These could be useful for doing transform input sampling
+	e1 = (total*mat([0,0,0,1]).T).T
+	e2 = (total*mat(list(array(source.metadata['shape'])[source.metadata['spatialAxes']])+[1]).T).T
+	s1 = (total*mat([1,1,1,1]).T).T - e1
+	#outputShape = (array(maximum(e1,e2)+1)[0,0:3]).astype(int16).tolist()   
+
+	# Use this if there's a like (using the target for this one)
+	outputShape = array(target.metadata['shape'])[target.metadata['spatialAxes']]
+
+	# Do the actual (linear) transform
+	linearResampled = affine_transform(im,total[0:3,0:3],offset=array(total)[0:3,3],output_shape=outputShape,order=1)
+
+	# Put the transformed axes back in the MINC order.  Note that we should check for negative spacing and flip here too
+	linearResampled = transpose(linearResampled,target.metadata['spatialAxes'])
+	
+	return linearResampled
+
+
+
+
+
 sourceF = '/temp/CIS-B_001-HSC-1_pt_00001_v02_t1g.mnc.gz'
 targetF = '/temp/icbm152_sym_t1w.mnc.gz'
-
-#io = VIOVolume()
-#status = io.read(fname)
-#data = io.getVolume()
-#d = data['data']
-#imshow(d[54])
-#io.invent()
 
 source = VIOVolume(sourceF,type=float32)
 target = VIOVolume(targetF,type=float32)
@@ -90,70 +123,26 @@ minc.execute(cmd)
 mincResampled = VIOVolume('/temp/sourceResampled.mnc.gz',type=float32).data
 
 # Resample source
-vol = source
-metadata = vol.metadata
-im = transpose(vol.data,metadata['spatialAxes'])			# Transforms are stored as x,y,z so our image should be too
-spacing = array(metadata['spacing'])[metadata['spatialAxes']]
-starts = array(metadata['starts'])[metadata['spatialAxes']]
-extents = array(metadata['shape'])[metadata['spatialAxes']]
-
-# Get the (flipped) source to world transform
-sourceToWorld = mat(minc.xfmFromParameters(translations=starts,scales=spacing))
-
-# Get the target to world transform.  Note that this is assuming the atlas, which doesn't need to be flipped
-targetToWorld = mat(target.voxelToWorldTransform.data)
-
-# Total source voxel to target voxel transform, inverted
-# It's important to multiply backwards, and don't forget about order of operations!
-total = (targetToWorld.I*(xfm*sourceToWorld)).I
-
-# These could be useful for doing transform input sampling
-e1 = (total*mat([0,0,0,1]).T).T
-e2 = (total*mat(list(array(source.metadata['shape'])[source.metadata['spatialAxes']])+[1]).T).T
-s1 = (total*mat([1,1,1,1]).T).T - e1
-#outputShape = (array(maximum(e1,e2)+1)[0,0:3]).astype(int16).tolist()   
-
-# Use this if there's a like (using the target for this one)
-outputShape = array(target.metadata['shape'])[target.metadata['spatialAxes']]
-
-# Do the actual (linear) transform
-linearResampled = affine_transform(im,total[0:3,0:3],offset=array(total)[0:3,3],output_shape=outputShape,order=1)
-
-# Put the transformed axes back in the MINC order.  Note that we should check for negative spacing and flip here too
-linearResampled = transpose(linearResampled,target.metadata['spatialAxes'])
-
-
-if 1:
-	xfm = transform.transforms[1]
-	ixfm = xfm.inverse
-	deformation = xfm.data
-	ideformation = ixfm.data
-	cxfm = VIOGeneralTransform([xfm,ixfm])
-	cdeformation = cxfm.getDeformation()
-
-deformationM = VIOVolume('/temp/nonlinear_grid_0.mnc')
-ideformationM = VIOVolume('/temp/nonlinearI_grid_0.mnc')
-cdeformationM = VIOVolume('/temp/concat_grid_0.mnc')
-
-figure(5);
-subplot(221); imshow(deformation.data[0,34],vmin=-30,vmax=30); colorbar()
-subplot(222); imshow(ideformation.data[0,34],vmin=-30,vmax=30); colorbar()
-subplot(223); imshow(cdeformation.data[0,34],vmin=-30,vmax=30); colorbar()
-
-figure(6);
-subplot(221); imshow(deformationM.data[0,34],vmin=-30,vmax=30); colorbar()
-subplot(222); imshow(ideformationM.data[0,34],vmin=-30,vmax=30); colorbar()
-subplot(223); imshow(cdeformationM.data[0,34],vmin=-30,vmax=30); colorbar()
+linearResampled = linearResample(source,transform=xfm,like=target)
 
 
 # Nonlinear resampling
+
+xfm = transform.transforms[1]
+cMap = xfm.getDeformation(invert=True,coordinateMap=True,like=target)
+cMapBig = linearResample(cMap,transform=i(4),like=target)
+
+
+nonlinearResampled = map_coordinates(linearResampled,cMap.data,order=1)
+
+
 if 0:
-	s = 75
-	titles = ['Source','Target','Resampled Source (Linear)','Minc Resampled (Linear)']
-	for i,data in enumerate([source.data,target.data,linearResampled,mincResampled]):
-		figure(i+1);
-		title(titles[i])
-		subplot(221); imshow(data[s]);
-		subplot(222); imshow(data[:,s]);
-		subplot(223); imshow(data[:,:,s]);
+s = 75
+titles = ['Source','Target','Resampled Source (Linear)','Minc Resampled (Linear)']
+for i,data in enumerate([source.data,target.data,linearResampled,nonlinearResampled]):
+	figure(i+1);
+	title(titles[i])
+	subplot(221); imshow(data[s]);
+	subplot(222); imshow(data[:,s]);
+	subplot(223); imshow(data[:,:,s]);
 
