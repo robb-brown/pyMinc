@@ -1,0 +1,9 @@
+build/
+*.o
+*.so
+*.pyc
+pyMinc.c
+<<<<<<< HEAD
+pyMinctracc/pyMinctracc.c
+=======
+>>>>>>> a08247c7bb1cc0479419b10221a32ca9920b7831
