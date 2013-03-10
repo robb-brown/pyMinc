@@ -319,16 +319,21 @@ cdef class VIOVolume:
 		return transform
 
 	
-	cdef transformPointFast(self,np.ndarray point,np.ndarray transformed):
+	cdef voxelToWorldFast(self,np.ndarray point,np.ndarray transformed):
 		convert_voxel_to_world(self.volume,<VIO_Real*>point.data,<VIO_Real*>transformed.data,<VIO_Real*>transformed.data+1,<VIO_Real*>transformed.data+2)
 
 
-	def transformPoint(self,point):
+	def voxelToWorld(self,point):
 		cdef np.ndarray point2 = np.array(point,np.float64)
 		cdef np.ndarray transformed = np.zeros(3,np.float64)
 		convert_voxel_to_world(self.volume,<VIO_Real*>point2.data,<VIO_Real*>transformed.data,<VIO_Real*>transformed.data+1,<VIO_Real*>transformed.data+2)
 		return transformed
-	
+		
+
+	def worldToVoxel(self,point):
+		cdef np.ndarray transformed = np.zeros(self.volume.array.n_dimensions,np.float64)
+		convert_world_to_voxel(self.volume,point[0],point[1],point[2],<VIO_Real*>transformed.data)
+		return transformed
 		
 		
 	property voxelToWorldTransform:
@@ -476,38 +481,51 @@ cdef class VIOGeneralTransform:
 		return transformed
 		
 	
-	def getDeformation(self,invert=False):
+	def getDeformation(self,invert=False,coordinateMap=False,like=None):
 		cdef VIO_Volume vol
 		cdef VIO_General_transform *xfm
 		cdef VIO_Real vcoord[4], wcoord[3], wcoord_t[3], value
 		cdef np.ndarray data,output
-		cdef int x,y,z,v,invert_flag
+		cdef int x,y,z,v,invert_flag, coord_map_flag
 		
-		for i in self.transforms:
-			if i.transformType == 'grid':
-				vol = <VIO_Volume>PyCapsule_GetPointer(i.data.volumePtr,NULL)
-				data = i.data.data
-				shp = np.shape(data)
-				metadata = i.data.metadata
-				break
+		if not like:
+			for i in self.transforms:
+				if i.transformType == 'grid':
+					like = i.data
+					break
+					
+		vol = <VIO_Volume>PyCapsule_GetPointer(like.volumePtr,NULL)
+		metadata = like.metadata
+		shp = metadata['shape']
+
 		output = np.zeros(shp,np.float64)
-		print "Shape: %s" % `np.shape(output)`
 		xfm = self.transform
 		invert_flag = invert
+		coord_map_flag = coordinateMap
 
 		vcoord[0] = 0.0
 		for x in range(0,shp[-1]):
 			for y in range(0,shp[-2]):
 				for z in range(0,shp[-3]):
-					vcoord[1] = z; vcoord[2] = y; vcoord[3] = x
+					vcoord[0] = 0; vcoord[1] = z; vcoord[2] = y; vcoord[3] = x
 					convert_voxel_to_world(vol,vcoord,wcoord,wcoord+1,wcoord+2)
 					transform_or_invert_point(xfm,invert_flag,wcoord[0],wcoord[1],wcoord[2],wcoord_t,wcoord_t+1,wcoord_t+2)
-					for v in range(0,3):
-						value = wcoord_t[v] - wcoord[v]
-						output[v,z,y,x] = value
+					if not coord_map_flag:
+						for v in range(0,3):
+							value = wcoord_t[v] - wcoord[v]
+							output[v,z,y,x] = value
+							
+					else:
+						convert_world_to_voxel(vol,wcoord_t[0],wcoord_t[1],wcoord_t[2],vcoord)
+						for v in range(0,3):
+							output[v,z,y,x] = vcoord[v+1]
 
 		newVolume = VIOVolume(output,spacing=metadata['spacing'],starts=metadata['starts'],names=metadata['names'])
 		return newVolume
+		
+		
+	def flipInverseFlag(self):
+		self.transform.inverse_flag = not self.transform.inverse_flag
 		
 		
 	property inverse:
@@ -515,8 +533,9 @@ cdef class VIOGeneralTransform:
 			cdef VIO_Transform *temp = NULL
 			cdef VIO_General_transform *ntptr = NULL
 			if self.transform.type == GRID_TRANSFORM:
+				newTransform = VIOGeneralTransform(self.data)
+				newTransform.flipInverseFlag()
 				data = self.getDeformation(invert=True)
-				newTransform = VIOGeneralTransform(data)
 			elif self.transform.type == LINEAR:
 				newTransform = VIOGeneralTransform(self.data)
 				ntptr = <VIO_General_transform*>PyCapsule_GetPointer(newTransform.transformPtr,NULL)
@@ -571,9 +590,12 @@ cdef class VIOGeneralTransform:
 				memcpy(<char*>xfm.data,<char*>self.transform.linear_transform.m[0],16*8)				
 				return xfm.T
 			elif self.transform.type == GRID_TRANSFORM:
-				grid = VIOVolume();
-				grid.setVolumePtr(<VIO_Volume>self.transform.displacement_volume,0)
-				return grid
+				if self.transform.inverse_flag:
+					return self.getDeformation(invert=True)
+				else:
+					grid = VIOVolume();
+					grid.setVolumePtr(<VIO_Volume>self.transform.displacement_volume,0)
+					return grid
 
 
 	property transformPtr:
