@@ -497,6 +497,8 @@ cdef class VIOGeneralTransform:
 		vol = <VIO_Volume>PyCapsule_GetPointer(like.volumePtr,NULL)
 		metadata = like.metadata
 		shp = metadata['shape']
+		if len(shp) == 3:
+			shp = [3,shp[0],shp[1],shp[2]]
 
 		output = np.zeros(shp,np.float64)
 		xfm = self.transform

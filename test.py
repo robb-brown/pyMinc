@@ -125,24 +125,30 @@ mincResampled = VIOVolume('/temp/sourceResampled.mnc.gz',type=float32).data
 # Resample source
 linearResampled = linearResample(source,transform=xfm,like=target)
 
-
 # Nonlinear resampling
-
 xfm = transform.transforms[1]
-cMap = xfm.getDeformation(invert=True,coordinateMap=True,like=target)
-cMapBig = linearResample(cMap,transform=i(4),like=target)
+
+deformation = xfm.getDeformation(invert=True,coordinateMap=False)
+metadata = deformation.metadata; spacing = metadata['spacing'][1:]; starts = metadata['starts'][1:]; names = metadata['names'][1:]
+planes = [VIOVolume(deformation.data[i],spacing=spacing,starts=starts,names=names) for i in range(0,3)]
+big = array([linearResample(i,transform=identity(4),like=target) for i in planes])
+slc = [slice(0,i) for i in shape(big)[1:]]
+cMap = big/4. + mgrid[slc]
+
+figure(5); clf(); imshow(deformation.data[0,:,34]); colorbar()
+figure(6); clf(); imshow(big[0,:,34*4]); colorbar()
+figure(7); clf(); imshow(cMap[0,:,34*4]); colorbar()
 
 
-nonlinearResampled = map_coordinates(linearResampled,cMap.data,order=1)
+nonlinearResampled = map_coordinates(linearResampled,cMap,order=1)
+nonlinearResampledM = VIOVolume('/temp/sourceToTargetNonlinear.mnc')
 
 
-if 0:
 s = 75
-titles = ['Source','Target','Resampled Source (Linear)','Minc Resampled (Linear)']
-for i,data in enumerate([source.data,target.data,linearResampled,nonlinearResampled]):
+titles = ['Source','Target','Resampled Source (Linear)','Resampled Source (nonlinear)','Minc resampled source (nonlinear)]
+for i,data in enumerate([source.data,target.data,linearResampled,nonlinearResampled,nonlinearResampledM]):
 	figure(i+1);
-	title(titles[i])
-	subplot(221); imshow(data[s]);
+	subplot(221); imshow(data[s]);title(titles[i])
 	subplot(222); imshow(data[:,s]);
 	subplot(223); imshow(data[:,:,s]);
 
