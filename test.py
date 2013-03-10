@@ -133,7 +133,7 @@ metadata = deformation.metadata; spacing = metadata['spacing'][1:]; starts = met
 planes = [VIOVolume(deformation.data[i],spacing=spacing,starts=starts,names=names) for i in range(0,3)]
 big = array([linearResample(i,transform=identity(4),like=target) for i in planes])
 slc = [slice(0,i) for i in shape(big)[1:]]
-cMap = big/4. + mgrid[slc]
+cMap = big + mgrid[slc]
 
 figure(5); clf(); imshow(deformation.data[0,:,34]); colorbar()
 figure(6); clf(); imshow(big[0,:,34*4]); colorbar()
@@ -145,8 +145,8 @@ nonlinearResampledM = VIOVolume('/temp/sourceToTargetNonlinear.mnc')
 
 
 s = 75
-titles = ['Source','Target','Resampled Source (Linear)','Resampled Source (nonlinear)','Minc resampled source (nonlinear)]
-for i,data in enumerate([source.data,target.data,linearResampled,nonlinearResampled,nonlinearResampledM]):
+titles = ['Source','Target','Resampled Source (Linear)','Resampled Source (nonlinear)','Minc resampled source (nonlinear)']
+for i,data in enumerate([source.data,target.data,linearResampled,nonlinearResampled,nonlinearResampledM.data]):
 	figure(i+1);
 	subplot(221); imshow(data[s]);title(titles[i])
 	subplot(222); imshow(data[:,s]);
