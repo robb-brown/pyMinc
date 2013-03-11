@@ -417,18 +417,20 @@ cdef class VIOGeneralTransform:
 		self.owner = owner
 
 
-	cdef setupTransform(self,VIO_General_transform *xfmPtr,data):		
+	cdef setupTransform(self,VIO_General_transform *xfmPtr,data,inverseFlag=False):		
 		cdef VIO_Transform *ltransform = NULL
 		cdef np.ndarray xfm
-		cdef int i
+		cdef int i,inverse_flag
+		if data.__class__ == VIOGeneralTransform:
+			self.setupTransform(xfmPtr,data.getData(noInverse=True),data.inverseFlag)
 		if data.__class__ == VIOVolume:
 			xfmPtr.type = GRID_TRANSFORM
-			xfmPtr.inverse_flag = False
+			xfmPtr.inverse_flag = inverseFlag
 			xfmPtr.displacement_volume = <VIO_Volume>PyCapsule_GetPointer(data.volumePtr,NULL)
 			xfmPtr.n_transforms = 1
 		elif np.shape(data) == (4,4):
 			xfmPtr.type = LINEAR
-			xfmPtr.inverse_flag = False
+			xfmPtr.inverse_flag = inverseFlag
 			xfm = np.array(data,np.float64)
 			ALLOC(ltransform,1)
 			memcpy(<char*>ltransform.m[0],<char*>xfm.data,16*8)	
@@ -440,10 +442,11 @@ cdef class VIOGeneralTransform:
 			xfmPtr.n_transforms = 1
 		elif len(np.shape(data)) == 1:
 			xfmPtr.type = CONCATENATED_TRANSFORM
-			xfmPtr.inverse_flag = False
+			xfmPtr.inverse_flag = inverseFlag
 			ALLOC(xfmPtr.transforms,len(data))
 			for i,x in enumerate(data):
-				self.setupTransform(xfmPtr.transforms+i,x.data)
+				inverse_flag = x.inverseFlag
+				self.setupTransform(xfmPtr.transforms+i,x.getData(noInverse=True),inverse_flag)
 			xfmPtr.n_transforms = len(data)
 
 
@@ -488,10 +491,26 @@ cdef class VIOGeneralTransform:
 		cdef np.ndarray data,output
 		cdef int x,y,z,v,invert_flag, coord_map_flag
 		
+		if self.transformType == 'concatenated':
+			# We need to make a (light) copy because we might have to invert some grid transforms
+			# and we want to do it on the low res ones before we sample
+			transforms2 = []
+			for x in self.transforms:
+				if x.inverseFlag == invert:
+					transforms2.append(x)
+				else:
+					transforms2.append(x.inverse)
+					
+					
+				i.evaluateGrid()
+		else:
+			transform = self
+		
+		
 		if not like:
-			for i in self.transforms:
+			for i in transform.transforms:
 				if i.transformType == 'grid':
-					like = i.data
+					like = i.getData(noInverse=True)
 					break
 					
 		vol = <VIO_Volume>PyCapsule_GetPointer(like.volumePtr,NULL)
@@ -499,9 +518,14 @@ cdef class VIOGeneralTransform:
 		shp = metadata['shape']
 		if len(shp) == 3:
 			shp = [3,shp[0],shp[1],shp[2]]
+			spacing = [1.0,metadata['spacing'][0],metadata['spacing'][1],metadata['spacing'][2]]
+			starts = [0.0,metadata['starts'][0],metadata['starts'][1],metadata['starts'][2]]
+			names = ['vector_dimension',metadata['names'][0],metadata['names'][1],metadata['names'][2]]
+		else:
+			spacing = metadata['spacing']; starts = metadata['starts']; names = metadata['names']
 
 		output = np.zeros(shp,np.float64)
-		xfm = self.transform
+		xfm = transform.transform
 		invert_flag = invert
 		coord_map_flag = coordinateMap
 
@@ -522,12 +546,40 @@ cdef class VIOGeneralTransform:
 						for v in range(0,3):
 							output[v,z,y,x] = vcoord[v+1]
 
-		newVolume = VIOVolume(output,spacing=metadata['spacing'],starts=metadata['starts'],names=metadata['names'])
+		newVolume = VIOVolume(output,spacing=spacing,starts=starts,names=names)
 		return newVolume
+		
+		
+	def evaluateGrid(self):
+		if self.transform.type == GRID_TRANSFORM:
+			if self.transform.inverse_flag:
+				vol = VIOVolume(self.getData())
+				self.transform.displacement_volume = <VIO_Volume>PyCapsule_GetPointer(vol.volumePtr,NULL)
+				self.flipInverseFlag()
 		
 		
 	def flipInverseFlag(self):
 		self.transform.inverse_flag = not self.transform.inverse_flag
+		
+		
+	def getData(self,noInverse=False):
+		cdef np.ndarray xfm = np.zeros((4,4),np.float64)
+		if self.transform.type == CONCATENATED_TRANSFORM:
+			transforms = self.transforms
+			return [i.getData(noInverse) for i in transforms]
+		elif self.transform.type == LINEAR:
+			memcpy(<char*>xfm.data,<char*>self.transform.linear_transform.m[0],16*8)
+			xfm = xfm.T
+			if self.inverseFlag and not noInverse:
+				xfm = xfm.I
+			return xfm
+		elif self.transform.type == GRID_TRANSFORM:
+			if self.transform.inverse_flag and not noInverse:
+				return self.getDeformation(invert=True)
+			else:
+				grid = VIOVolume();
+				grid.setVolumePtr(<VIO_Volume>self.transform.displacement_volume,0)
+				return grid
 		
 		
 	property inverse:
@@ -535,9 +587,8 @@ cdef class VIOGeneralTransform:
 			cdef VIO_Transform *temp = NULL
 			cdef VIO_General_transform *ntptr = NULL
 			if self.transform.type == GRID_TRANSFORM:
-				newTransform = VIOGeneralTransform(self.data)
-				newTransform.flipInverseFlag()
-				data = self.getDeformation(invert=True)
+				newTransform = VIOGeneralTransform(self.getData(noInverse=True))
+				newTransform.inverseFlag = not self.inverseFlag
 			elif self.transform.type == LINEAR:
 				newTransform = VIOGeneralTransform(self.data)
 				ntptr = <VIO_General_transform*>PyCapsule_GetPointer(newTransform.transformPtr,NULL)
@@ -552,6 +603,13 @@ cdef class VIOGeneralTransform:
 				newTransform = None
 			return newTransform
 	
+	
+	property inverseFlag:
+		def __get__(self):
+			return self.transform.inverse_flag
+
+		def __set__(self,flag):
+			self.transform.inverse_flag = flag
 		
 	property transformType:
 		def __get__(self):
@@ -584,21 +642,8 @@ cdef class VIOGeneralTransform:
 			
 	property data:
 		def __get__(self):
-			cdef np.ndarray xfm = np.zeros((4,4),np.float64)
-			if self.transform.type == CONCATENATED_TRANSFORM:
-				transforms = self.transforms
-				return [i.data for i in transforms]
-			elif self.transform.type == LINEAR:
-				memcpy(<char*>xfm.data,<char*>self.transform.linear_transform.m[0],16*8)				
-				return xfm.T
-			elif self.transform.type == GRID_TRANSFORM:
-				if self.transform.inverse_flag:
-					return self.getDeformation(invert=True)
-				else:
-					grid = VIOVolume();
-					grid.setVolumePtr(<VIO_Volume>self.transform.displacement_volume,0)
-					return grid
-
+			return self.getData()
+			
 
 	property transformPtr:
 		def __get__(self):
