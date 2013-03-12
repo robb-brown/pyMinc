@@ -217,6 +217,7 @@ cdef class VIOVolume:
 		cdef char **dim_names = NULL
 		cdef np.ndarray vec
 		
+		
 		dimN = len(np.shape(data))
 
 		if spacing == None:
@@ -253,6 +254,7 @@ cdef class VIOVolume:
 		cdef void *dataPtr = NULL
 		GET_VOXEL_PTR(dataPtr,vol,0,0,0,0,0)
 		
+		data = np.require(data,requirements='C')
 		memcpy(<char*>dataPtr,<char*>data.data,voxels*size)
 		
 		self.volume = vol
@@ -282,7 +284,8 @@ cdef class VIOVolume:
 		arr[0,0,0] = 1; arr[5,5,5] = 2; arr[9,9,9] = 3
 		cdef void *dataPtr = NULL
 		GET_VOXEL_PTR(dataPtr,vol,0,0,0,0,0)
-		
+
+		arr = np.require(arr,requirements='F')
 		memcpy(<char*>dataPtr,<char*>arr.data,1000)
 		
 #		set_volume_separations
@@ -313,7 +316,7 @@ cdef class VIOVolume:
 	def getVoxelToWorldTransform(self,cosines=False):
 		cdef VIO_General_transform *xfm = NULL
 		ALLOC(xfm,1)
-		info = self.metaData
+		info = self.metadata
 		compute_world_transform(self.volume.spatial_axes,self.volume.separations,self.volume.direction_cosines,self.volume.starts,xfm)
 		transform = VIOGeneralTransform(); transform.setTransformPtr(xfm)
 		return transform
@@ -433,6 +436,7 @@ cdef class VIOGeneralTransform:
 			xfmPtr.inverse_flag = inverseFlag
 			xfm = np.array(data,np.float64)
 			ALLOC(ltransform,1)
+			xfm = np.require(xfm,requirements='F')
 			memcpy(<char*>ltransform.m[0],<char*>xfm.data,16*8)	
 			xfmPtr.linear_transform = ltransform
 			ALLOC(ltransform,1)
@@ -484,28 +488,32 @@ cdef class VIOGeneralTransform:
 		return transformed
 		
 	
-	def getDeformation(self,invert=False,coordinateMap=False,like=None):
+	def getDeformation(self,invert=False,coordinateMap=False,source=None,target=None,like=None):
 		cdef VIO_Volume vol
 		cdef VIO_General_transform *xfm
 		cdef VIO_Real vcoord[4], wcoord[3], wcoord_t[3], value
 		cdef np.ndarray data,output
 		cdef int x,y,z,v,invert_flag, coord_map_flag
 		
-		if self.transformType == 'concatenated':
+#		if self.transformType == 'concatenated':
 			# We need to make a (light) copy because we might have to invert some grid transforms
 			# and we want to do it on the low res ones before we sample
-			transforms2 = []
-			for x in self.transforms:
-				if x.inverseFlag == invert:
-					transforms2.append(x)
-				else:
-					transforms2.append(x.inverse)
+#			transforms2 = []
+#			for x in self.transforms:
+#				if x.inverseFlag == invert:
+#					transforms2.append(x)
+#				else:
+#					transforms2.append(x.inverse)
 					
 					
-				i.evaluateGrid()
-		else:
-			transform = self
+#				i.evaluateGrid()
+#		else:
+#			transform = self
 		
+		transform = self
+		
+		if target:
+			like = target
 		
 		if not like:
 			for i in transform.transforms:
@@ -528,23 +536,31 @@ cdef class VIOGeneralTransform:
 		xfm = transform.transform
 		invert_flag = invert
 		coord_map_flag = coordinateMap
+		
+		if coordinateMap:
+			# We're making a coordinate map so we need the transform including the world transforms
+			transforms = transform.transforms
+			transforms.insert(0,source.getVoxelToWorldTransform())
+			transforms.append(target.getVoxelToWorldTransform().inverse)
+			tempTransform = VIOGeneralTransform(transforms)
+			xfm = tempTransform.transform
 
-		vcoord[0] = 0.0
 		for x in range(0,shp[-1]):
 			for y in range(0,shp[-2]):
 				for z in range(0,shp[-3]):
-					vcoord[0] = 0; vcoord[1] = z; vcoord[2] = y; vcoord[3] = x
-					convert_voxel_to_world(vol,vcoord,wcoord,wcoord+1,wcoord+2)
-					transform_or_invert_point(xfm,invert_flag,wcoord[0],wcoord[1],wcoord[2],wcoord_t,wcoord_t+1,wcoord_t+2)
-					if not coord_map_flag:
+					if not coord_map_flag:					# Just make a world-space deformation map
+						vcoord[0] = 0; vcoord[1] = z; vcoord[2] = y; vcoord[3] = x
+						convert_voxel_to_world(vol,vcoord,wcoord,wcoord+1,wcoord+2)
+						transform_or_invert_point(xfm,invert_flag,wcoord[0],wcoord[1],wcoord[2],wcoord_t,wcoord_t+1,wcoord_t+2)
 						for v in range(0,3):
 							value = wcoord_t[v] - wcoord[v]
 							output[v,z,y,x] = value
 							
-					else:
-						convert_world_to_voxel(vol,wcoord_t[0],wcoord_t[1],wcoord_t[2],vcoord)
-						for v in range(0,3):
-							output[v,z,y,x] = vcoord[v+1]
+					else:								# Make a voxel to voxel deformation map
+						transform_or_invert_point(xfm,invert_flag,x,y,z,wcoord_t,wcoord_t+1,wcoord_t+2)
+						output[0,z,y,x] = wcoord_t[2]
+						output[1,z,y,x] = wcoord_t[1]
+						output[2,z,y,x] = wcoord_t[0]
 
 		newVolume = VIOVolume(output,spacing=spacing,starts=starts,names=names)
 		return newVolume
@@ -569,10 +585,9 @@ cdef class VIOGeneralTransform:
 			return [i.getData(noInverse) for i in transforms]
 		elif self.transform.type == LINEAR:
 			memcpy(<char*>xfm.data,<char*>self.transform.linear_transform.m[0],16*8)
-			xfm = xfm.T
 			if self.inverseFlag and not noInverse:
 				xfm = xfm.I
-			return xfm
+			return xfm.T
 		elif self.transform.type == GRID_TRANSFORM:
 			if self.transform.inverse_flag and not noInverse:
 				return self.getDeformation(invert=True)

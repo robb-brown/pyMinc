@@ -141,6 +141,11 @@ cdef extern from "volume_io.h":
 		VIO_Real                *z_transformed )
 		
 		
+	void  concat_general_transforms(
+	    VIO_General_transform   *first,
+	    VIO_General_transform   *second,
+	    VIO_General_transform   *result )
+			
 		
 		
 		
