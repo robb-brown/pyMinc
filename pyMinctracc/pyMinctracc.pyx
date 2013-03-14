@@ -57,7 +57,7 @@ cdef class Minctracc(object):
 			
 	
 	
-	def minctracc(self,source,target,sourceMask=None,targetMask=None,initialXFM=None,**args):
+	def minctracc(self,source,target,sourceMask=None,targetMask=None,initialXFM=None,iterations=4,**args):
 		
 		cdef Arg_Data *cArgs = NULL
 		ALLOC(cArgs,1)
@@ -78,7 +78,7 @@ cdef class Minctracc(object):
 		sourceMaskC = <VIO_Volume>PyCapsule_GetPointer(sourceMask.volumePtr,NULL) if sourceMask else NULL
 		targetMaskC = <VIO_Volume>PyCapsule_GetPointer(targetMask.volumePtr,NULL) if targetMask else NULL
 		
-		final = minctracc(sourceC,targetC,sourceMaskC,targetMaskC,initial,cArgs)
+		final = minctracc(sourceC,targetC,sourceMaskC,targetMaskC,initial,iterations,cArgs)
 
 		finalXFM = VIOGeneralTransform(PyCapsule_New(<void*>final,NULL,NULL))
 

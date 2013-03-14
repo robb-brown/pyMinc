@@ -578,6 +578,18 @@ cdef class VIOGeneralTransform:
 		self.transform.inverse_flag = not self.transform.inverse_flag
 		
 		
+	def calculateInverseLinearTransform(self):
+		cdef VIO_Transform *ltransform = NULL
+		cdef np.ndarray xfm
+		if self.transformType == 'linear':
+			xfm = np.linalg.inv(self.data)
+			xfm = np.require(xfm,requirements='F')
+			ALLOC(ltransform,1)
+			memcpy(<char*>ltransform.m[0],<char*>xfm.data,16*8)	
+			FREE(self.transform.inverse_linear_transform)
+			self.transform.inverse_linear_transform = ltransform
+		
+		
 	def getData(self,noInverse=False):
 		cdef np.ndarray xfm = np.zeros((4,4),np.float64)
 		if self.transform.type == CONCATENATED_TRANSFORM:
@@ -586,7 +598,7 @@ cdef class VIOGeneralTransform:
 		elif self.transform.type == LINEAR:
 			memcpy(<char*>xfm.data,<char*>self.transform.linear_transform.m[0],16*8)
 			if self.inverseFlag and not noInverse:
-				xfm = xfm.I
+				xfm = np.linalg.inv(xfm)
 			return xfm.T
 		elif self.transform.type == GRID_TRANSFORM:
 			if self.transform.inverse_flag and not noInverse:

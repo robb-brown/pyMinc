@@ -6,10 +6,10 @@ from pylab import *
 from time import time
 from scipy.ndimage.interpolation import *
 from scipy.ndimage import *
-import lingo.mincUtils as minc
-from lingo.useDB2 import bcolors
 from numpy import ma as ma
 import os.path as p
+import lingo.mincUtils as minc
+from lingo.useDB2 import bcolors
 
 
 
@@ -61,6 +61,12 @@ sourceMask = VIOVolume('/temp/sourceMask.mnc.gz',type=float32)
 targetMask = VIOVolume('/temp/targetMask.mnc.gz',type=float32)
 (sdata,tdata,linearResampled,nonlinearResampled,mincResampled) = (None,None,None,None,None)
 
+source = VIOVolume(source.data.astype(uint8))
+target = VIOVolume(target.data.astype(uint8))
+sourceMask = VIOVolume(sourceMask.data.astype(uint8))
+targetMask = VIOVolume(targetMask.data.astype(uint8))
+
+
 m = Minctracc()
 
 if 0:			# Time comparison
@@ -76,7 +82,7 @@ if 0:			# Time comparison
 	print "\nSimplex took %0.2fs.  BFGS took %0.2fs." % (t2-t1,t4-t3)
 
 
-if 0:
+if 1:
 	sourceMeta = source.metadata
 	targetMeta = target.metadata
 	sourceArgs = {'spacing':sourceMeta['spacing'],'starts':sourceMeta['starts']}
@@ -93,30 +99,33 @@ if 0:
 	target4 = VIOVolume(filters.uniform_filter(target.data,size=4,mode='constant'),**targetArgs)
 	target2 = VIOVolume(filters.uniform_filter(target.data,size=2,mode='constant'),**targetArgs)
 
+	iterations = 20
 	t1 = time()
 	print bcolors.BLUE + '\n\nDoing linear registration\n' + bcolors.END
-	linear = m.minctracc(target4,source4,sourceMask=targetMask,targetMask=sourceMask,initialXFM=None,transformType='lsq12',debug=False)
-	linearI = m.minctracc(source4,target4,sourceMask=sourceMask,targetMask=targetMask,initialXFM=None,transformType='lsq12',debug=False)
+	linear = m.minctracc(target4,source4,sourceMask=targetMask,targetMask=sourceMask,initialXFM=None,iterations=iterations,transformType='lsq12',debug=False)
 	t2 = time()
 	print bcolors.BLUE + '\n\nDoing non linear 32 registration\n' + bcolors.END
-	nonlinear16 = m.minctracc(target4,source4,sourceMask=targetMask,targetMask=sourceMask,initialXFM=linear,transformType='nonlinear',step=[16.0,16.0,16.0],debug=False)
+	nonlinear16 = m.minctracc(target4,source4,sourceMask=targetMask,targetMask=sourceMask,initialXFM=linear,iterations=iterations,transformType='nonlinear',step=[16.0,16.0,16.0],debug=False)
 	t3 = time()
 	print bcolors.BLUE + '\n\nDoing non linear 16 registration\n' + bcolors.END
-	nonlinear16 = m.minctracc(target4,source4,sourceMask=targetMask,targetMask=sourceMask,initialXFM=linear,transformType='nonlinear',step=[16.0,16.0,16.0],debug=False)
+	nonlinear16 = m.minctracc(target4,source4,sourceMask=targetMask,targetMask=sourceMask,initialXFM=linear,iterations=iterations,transformType='nonlinear',step=[16.0,16.0,16.0],debug=False)
 	t4 = time()
 	print bcolors.BLUE + '\n\nDoing non linear 8 registration\n' + bcolors.END
-	nonlinear8 = m.minctracc(target8,source8,sourceMask=targetMask,targetMask=sourceMask,initialXFM=nonlinear16,transformType='nonlinear',step=[8.0,8.0,8.0],debug=False)
+	nonlinear8 = m.minctracc(target8,source8,sourceMask=targetMask,targetMask=sourceMask,initialXFM=nonlinear16,iterations=iterations,transformType='nonlinear',step=[8.0,8.0,8.0],debug=False)
 	t5 = time()
+	iterations = 10
 	print bcolors.BLUE + '\n\nDoing non linear 4 registration\n' + bcolors.END
-	nonlinear4 = m.minctracc(target4,source4,sourceMask=targetMask,targetMask=sourceMask,initialXFM=nonlinear8,transformType='nonlinear',step=[4.0,4.0,4.0],debug=False)
+	nonlinear4 = m.minctracc(target4,source4,sourceMask=targetMask,targetMask=sourceMask,initialXFM=nonlinear8,iterations=iterations,transformType='nonlinear',step=[4.0,4.0,4.0],debug=False)
 	t6 = time()
-	print bcolors.BLUE + '\n\nDoing non linear 4 registration\n' + bcolors.END
-	nonlinear2 = m.minctracc(target2,source2,sourceMask=targetMask,targetMask=sourceMask,initialXFM=nonlinear4,transformType='nonlinear',step=[4.0,4.0,4.0],debug=False)
+	print bcolors.BLUE + '\n\nDoing non linear 2 registration\n' + bcolors.END
+	nonlinear2 = m.minctracc(target2,source2,sourceMask=targetMask,targetMask=sourceMask,initialXFM=nonlinear4,iterations=iterations,transformType='nonlinear',step=[2.0,2.0,2.0],debug=False)
 	t7 = time()
-	
-	nonlinear2 = nonlinear2.transforms[1];
+
+	nonlinear2.transforms[0].calculateInverseLinearTransform()
 	nonlinear2.flipInverseFlag()
-	nonlinear2 = VIOGeneralTransform([linear,nonlinear2])
+#	nonlinear2 = nonlinear2.transforms[1];
+#	nonlinear2.flipInverseFlag()
+#	nonlinear2 = VIOGeneralTransform([linear,nonlinear2])
 
 	print "Registration took: "
 	print "	Linear: %0.2f s" % (t2-t1)
@@ -126,7 +135,7 @@ if 0:
 	print "	Nonlinear 4: %0.2f s" % (t6-t5)
 	print "	Nonlinear 2: %0.2f s" % (t7-t6)
 	
-	transform = nonlinear4
+	transform = nonlinear2
 	
 	transform.write('/temp/nonlinear.xfm')
 	linear.write('/temp/linear.xfm')
@@ -158,11 +167,12 @@ linearResampled = linearResample(source,transform=xfm,like=target)
 if 1:
 	# Nonlinear resampling
 	print "Doing nonlinear resampling"
+	invert = True				# This needs to be smart.
 
 	if 0:		# Alternate (faster?) way of making the full size deformation field
 		xfm = [i for i in transform.transforms if i.transformType == 'grid'][0]
 		t6 = time()
-		deformation = xfm.getDeformation(invert=True,coordinateMap=False)
+		deformation = xfm.getDeformation(invert=invert,coordinateMap=False)
 		metadata = deformation.metadata; spacing = metadata['spacing'][1:]; starts = metadata['starts'][1:]; names = metadata['names'][1:]
 		planes = [VIOVolume(deformation.data[i],spacing=spacing,starts=starts,names=names) for i in range(0,3)]
 		big = array([linearResample(i,transform=identity(4),like=target) for i in planes])
@@ -179,7 +189,7 @@ if 1:
 
 	if 1:			# Same way minc does it?
 		t6 = time()
-		cMap = transform.getDeformation(invert=True,coordinateMap=True,source=source,target=target).data
+		cMap = transform.getDeformation(invert=invert,coordinateMap=True,source=source,target=target).data
 		t7 = time()
 		t8 = time()
 		nonlinearResampled = map_coordinates(source.data,cMap,order=1)
@@ -192,7 +202,7 @@ if 1:
 
 
 		try:
-			deformation = xfm.getDeformation(invert=False,coordinateMap=False)
+			deformation = xfm.getDeformation(invert=invert,coordinateMap=False)
 			figure(6); clf(); imshow(deformation.data[0,:,34]); colorbar()
 		except:
 			pass
@@ -202,7 +212,7 @@ if 1:
 		figure(7); clf(); imshow(big[0,:,34*4]); colorbar(); title('Coordinate change map')
 		figure(8); clf(); imshow(cMap[0,:,34*4]); colorbar(); title('Coordinate Map')
 
-		print "Time to do nonlinear resample: %0.2f s to get cMap, %0.2f s to do resample, %0.2f s total" % (t7-t6,t9-t8,t7-t6+t9-t8)
+	print "Time to do nonlinear resample: %0.2f s to get cMap, %0.2f s to do resample, %0.2f s total" % (t7-t6,t9-t8,t7-t6+t9-t8)
 
 
 if 1:
