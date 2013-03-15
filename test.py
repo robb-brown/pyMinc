@@ -61,10 +61,10 @@ sourceMask = VIOVolume('/temp/sourceMask.mnc.gz',type=float32)
 targetMask = VIOVolume('/temp/targetMask.mnc.gz',type=float32)
 (sdata,tdata,linearResampled,nonlinearResampled,mincResampled) = (None,None,None,None,None)
 
-source = VIOVolume(source.data.astype(uint8))
-target = VIOVolume(target.data.astype(uint8))
-sourceMask = VIOVolume(sourceMask.data.astype(uint8))
-targetMask = VIOVolume(targetMask.data.astype(uint8))
+#source = VIOVolume(source.data.astype(uint8))
+#target = VIOVolume(target.data.astype(uint8))
+#sourceMask = VIOVolume(sourceMask.data.astype(uint8))
+#targetMask = VIOVolume(targetMask.data.astype(uint8))
 
 
 m = Minctracc()
@@ -88,6 +88,7 @@ if 1:
 	sourceArgs = {'spacing':sourceMeta['spacing'],'starts':sourceMeta['starts']}
 	targetArgs = {'spacing':targetMeta['spacing'],'starts':targetMeta['starts']}
 
+	t0 = time()
 	source32 = VIOVolume(filters.uniform_filter(source.data,size=32,mode='constant'),**sourceArgs)
 	source16 = VIOVolume(filters.uniform_filter(source.data,size=16,mode='constant'),**sourceArgs)
 	source8 = VIOVolume(filters.uniform_filter(source.data,size=8,mode='constant'),**sourceArgs)
@@ -112,22 +113,21 @@ if 1:
 	t4 = time()
 	print bcolors.BLUE + '\n\nDoing non linear 8 registration\n' + bcolors.END
 	nonlinear8 = m.minctracc(target8,source8,sourceMask=targetMask,targetMask=sourceMask,initialXFM=nonlinear16,iterations=iterations,transformType='nonlinear',step=[8.0,8.0,8.0],debug=False)
-	t5 = time()
+	t5 = time()	
 	iterations = 10
 	print bcolors.BLUE + '\n\nDoing non linear 4 registration\n' + bcolors.END
-	nonlinear4 = m.minctracc(target4,source4,sourceMask=targetMask,targetMask=sourceMask,initialXFM=nonlinear8,iterations=iterations,transformType='nonlinear',step=[4.0,4.0,4.0],debug=False)
+	#	nonlinear4 = m.minctracc(target4,source4,sourceMask=targetMask,targetMask=sourceMask,initialXFM=nonlinear8,iterations=iterations,transformType='nonlinear',step=[4.0,4.0,4.0],debug=False)
 	t6 = time()
 	print bcolors.BLUE + '\n\nDoing non linear 2 registration\n' + bcolors.END
-	nonlinear2 = m.minctracc(target2,source2,sourceMask=targetMask,targetMask=sourceMask,initialXFM=nonlinear4,iterations=iterations,transformType='nonlinear',step=[2.0,2.0,2.0],debug=False)
+	#	nonlinear2 = m.minctracc(target2,source2,sourceMask=targetMask,targetMask=sourceMask,initialXFM=nonlinear4,iterations=iterations,transformType='nonlinear',step=[2.0,2.0,2.0],debug=False)
 	t7 = time()
 
-	nonlinear2.transforms[0].calculateInverseLinearTransform()
-	nonlinear2.flipInverseFlag()
 #	nonlinear2 = nonlinear2.transforms[1];
 #	nonlinear2.flipInverseFlag()
 #	nonlinear2 = VIOGeneralTransform([linear,nonlinear2])
 
 	print "Registration took: "
+	print "	Blurring: %0.2f s" % (t1-t0)
 	print "	Linear: %0.2f s" % (t2-t1)
 	print "	Nonlinear 32: %0.2f s" % (t3-t2)
 	print "	Nonlinear 16: %0.2f s" % (t4-t3)
@@ -135,13 +135,77 @@ if 1:
 	print "	Nonlinear 4: %0.2f s" % (t6-t5)
 	print "	Nonlinear 2: %0.2f s" % (t7-t6)
 	
-	transform = nonlinear2
-	
+
+	transform = nonlinear8
+
+	transform.transforms[0].calculateInverseLinearTransform()
+	transform.flipInverseFlag()
+
 	transform.write('/temp/nonlinear.xfm')
 	linear.write('/temp/linear.xfm')
 	
 else:
 	transform = VIOGeneralTransform('/temp/nonlinear.xfm')
+	
+	
+if 1:			# old minctracc registration
+	t0 = time()
+	cmd = 
+	source32 = VIOVolume(filters.uniform_filter(source.data,size=32,mode='constant'),**sourceArgs)
+	source16 = VIOVolume(filters.uniform_filter(source.data,size=16,mode='constant'),**sourceArgs)
+	source8 = VIOVolume(filters.uniform_filter(source.data,size=8,mode='constant'),**sourceArgs)
+	source4 = VIOVolume(filters.uniform_filter(source.data,size=4,mode='constant'),**sourceArgs)
+	source2 = VIOVolume(filters.uniform_filter(source.data,size=2,mode='constant'),**sourceArgs)
+	target32 = VIOVolume(filters.uniform_filter(target.data,size=32,mode='constant'),**targetArgs)
+	target16 = VIOVolume(filters.uniform_filter(target.data,size=16,mode='constant'),**targetArgs)
+	target8 = VIOVolume(filters.uniform_filter(target.data,size=8,mode='constant'),**targetArgs)
+	target4 = VIOVolume(filters.uniform_filter(target.data,size=4,mode='constant'),**targetArgs)
+	target2 = VIOVolume(filters.uniform_filter(target.data,size=2,mode='constant'),**targetArgs)
+
+	iterations = 20
+	t1 = time()
+	print bcolors.BLUE + '\n\nDoing linear registration\n' + bcolors.END
+	linear = m.minctracc(target4,source4,sourceMask=targetMask,targetMask=sourceMask,initialXFM=None,iterations=iterations,transformType='lsq12',debug=False)
+	t2 = time()
+	print bcolors.BLUE + '\n\nDoing non linear 32 registration\n' + bcolors.END
+	nonlinear16 = m.minctracc(target4,source4,sourceMask=targetMask,targetMask=sourceMask,initialXFM=linear,iterations=iterations,transformType='nonlinear',step=[16.0,16.0,16.0],debug=False)
+	t3 = time()
+	print bcolors.BLUE + '\n\nDoing non linear 16 registration\n' + bcolors.END
+	nonlinear16 = m.minctracc(target4,source4,sourceMask=targetMask,targetMask=sourceMask,initialXFM=linear,iterations=iterations,transformType='nonlinear',step=[16.0,16.0,16.0],debug=False)
+	t4 = time()
+	print bcolors.BLUE + '\n\nDoing non linear 8 registration\n' + bcolors.END
+	nonlinear8 = m.minctracc(target8,source8,sourceMask=targetMask,targetMask=sourceMask,initialXFM=nonlinear16,iterations=iterations,transformType='nonlinear',step=[8.0,8.0,8.0],debug=False)
+	t5 = time()	
+	iterations = 10
+	print bcolors.BLUE + '\n\nDoing non linear 4 registration\n' + bcolors.END
+	#	nonlinear4 = m.minctracc(target4,source4,sourceMask=targetMask,targetMask=sourceMask,initialXFM=nonlinear8,iterations=iterations,transformType='nonlinear',step=[4.0,4.0,4.0],debug=False)
+	t6 = time()
+	print bcolors.BLUE + '\n\nDoing non linear 2 registration\n' + bcolors.END
+	#	nonlinear2 = m.minctracc(target2,source2,sourceMask=targetMask,targetMask=sourceMask,initialXFM=nonlinear4,iterations=iterations,transformType='nonlinear',step=[2.0,2.0,2.0],debug=False)
+	t7 = time()
+
+#	nonlinear2 = nonlinear2.transforms[1];
+#	nonlinear2.flipInverseFlag()
+#	nonlinear2 = VIOGeneralTransform([linear,nonlinear2])
+
+	print "Registration took: "
+	print "	Blurring: %0.2f s" % (t1-t0)
+	print "	Linear: %0.2f s" % (t2-t1)
+	print "	Nonlinear 32: %0.2f s" % (t3-t2)
+	print "	Nonlinear 16: %0.2f s" % (t4-t3)
+	print "	Nonlinear 8: %0.2f s" % (t5-t4)
+	print "	Nonlinear 4: %0.2f s" % (t6-t5)
+	print "	Nonlinear 2: %0.2f s" % (t7-t6)
+
+
+	transform = nonlinear8
+
+	transform.transforms[0].calculateInverseLinearTransform()
+	transform.flipInverseFlag()
+
+	transform.write('/temp/nonlinear.xfm')
+	linear.write('/temp/linear.xfm')
+
 
 
 linear = [i for i in transform.transforms if i.transformType == 'linear'][0]
@@ -161,7 +225,7 @@ if not p.exists('/temp/sourceResampled.mnc.gz'):
 mincResampled = VIOVolume('/temp/sourceResampled.mnc.gz',type=float32)
 
 # Resample source
-linearResampled = linearResample(source,transform=xfm,like=target)
+linearResampled = linearResample(source,transform=xfm.I,like=target)
 
 
 if 1:
