@@ -5,7 +5,7 @@ from pyMinctracc cimport *
 from builtins cimport *
 from volume_io cimport ALLOC, FREE
 
-from pyMinc import VIOGeneralTransform
+from pyMinc import VIOGeneralTransform, VIOVolume
 
 from cpython cimport PyCapsule, PyCapsule_New, PyCapsule_GetPointer
 
@@ -22,6 +22,7 @@ cdef class Minctracc(object):
 		'lsq12' : TRANS_LSQ12,
 		'nonlinear' : TRANS_NONLIN,
 		'PAT' : TRANS_PAT,
+		'pat' : TRANS_PAT,
 		
 		# interpolating type
 		'linear' : TRILINEAR,
@@ -64,6 +65,13 @@ cdef class Minctracc(object):
 		initializeArgs(cArgs)
 		
 		self.copyArgs(cArgs,args)
+		
+		if cArgs.trans_info.transform_type == TRANS_NONLIN:
+			smd = source.metadata
+			if not smd['dtype'] == np.float64:
+				source = VIOVolume(source.astype(np.float64),**smd)
+			if not smd['dtype'] == np.float64:
+				target = VIOVolume(target.astype(np.float64),**smd)
 
 		cdef VIO_General_transform *initial = NULL
 		cdef VIO_General_transform *final = NULL
@@ -81,6 +89,9 @@ cdef class Minctracc(object):
 		final = minctracc(sourceC,targetC,sourceMaskC,targetMaskC,initial,iterations,cArgs)
 
 		finalXFM = VIOGeneralTransform(PyCapsule_New(<void*>final,NULL,NULL))
+		
+		if not cArgs.trans_info.transform_type == TRANS_NONLIN:
+			finalXFM.calculateInverseLinearTransform()
 
 		return finalXFM
 		

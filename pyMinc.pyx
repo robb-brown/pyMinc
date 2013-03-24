@@ -302,10 +302,14 @@ cdef class VIOVolume:
 		status = output_volume(fname,type,signed,0,0,self.volume,NULL,NULL)
 		
 		
-	def read(self,fname,type=MI_ORIGINAL_TYPE,dsigned=False,min=0,max=0,create=True):
+	def read(self,fname,type=None,dsigned=False,min=0.0,max=0.0,create=True):
 		cdef VIO_Volume vol = NULL
 		cdef minc_input_options *options = NULL
-		type,signed = numpyToNCType.get(type,(type,dsigned))
+		if type == None:
+			type = MI_ORIGINAL_TYPE
+			signed = False
+		else:
+			type,signed = numpyToNCType.get(type,(type,dsigned))
 		ALLOC(vol,1)
 		status = input_volume(fname,0,NULL,type,signed,min,max,create,&vol,options)
 		self.volume = vol
@@ -624,7 +628,7 @@ cdef class VIOGeneralTransform:
 				ntptr.inverse_linear_transform = temp
 			elif self.transform.type == CONCATENATED_TRANSFORM:
 				xfms = [i.inverse for i in self.transforms]
-				newTransform = VIOGeneralTransform(xfms)
+				newTransform = VIOGeneralTransform(xfms[::-1])
 			else:
 				print "I don't know how to handle this kind of transform"
 				newTransform = None
