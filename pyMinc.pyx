@@ -195,9 +195,21 @@ cdef class VIOVolume:
 				
 	def __del__(self):
 		if not self.volume == NULL and self.owner:
-			FREE(self.volume)
+			delete_volume(self.volume)
 		if not self.options == NULL:
 			FREE(self.options)
+			
+			
+	def __getstate__(self):
+		ret = self.metadata
+		ret['data'] = self.data
+		return ret
+	
+	def __setstate__(self,args):
+		self.createWithData(args['data'],args.get('spacing',None),args.get('starts',None),args.get('names',None))
+
+	def __reduce__(self):
+		return (VIOVolume,(),self.__getstate__())
 			
 			
 	cdef setVolumePtr(self,VIO_Volume vol,int owner=1):
@@ -453,14 +465,23 @@ cdef class VIOGeneralTransform:
 			xfmPtr.inverse_flag = inverseFlag
 			ALLOC(xfmPtr.transforms,len(data))
 			for i,x in enumerate(data):
-				inverse_flag = x.inverseFlag
-				self.setupTransform(xfmPtr.transforms+i,x.getData(noInverse=True),inverse_flag)
+				self.setupTransform(xfmPtr.transforms+i,x,False)
 			xfmPtr.n_transforms = len(data)
 
 
 	def __del__(self):
 		if not self.transform == NULL and self.owner:
-			FREE(self.transform)
+			delete_general_transform(self.transform)
+
+	def __getstate__(self):
+		ret = {'data' : self.data}
+		return ret
+
+	def __setstate__(self,args):
+		self.setupTransform(self.transform,args['data'])
+
+	def __reduce__(self):
+		return (VIOGeneralTransform,(self.data,True))
 			
 	
 	cdef setTransformPtr(self,VIO_General_transform *ptr,int owner=1):
@@ -612,6 +633,29 @@ cdef class VIOGeneralTransform:
 				grid.setVolumePtr(<VIO_Volume>self.transform.displacement_volume,0)
 				return grid
 		
+		
+	property linearTransforms:
+		def __get__(self):
+			if self.transformType == 'linear':
+				return self
+			elif self.transformType == 'concatenated':
+				xfms = [t for t in [i.linearTransforms for i in self.transforms] if not t == None]
+				if len(xfms) == 1: xfms = xfms[0]
+				return xfms
+			else:
+				return None
+				
+	property gridTransforms:
+		def __get__(self):
+			if self.transformType == 'grid':
+				return self
+			elif self.transformType == 'concatenated':
+				xfms = [t for t in [i.gridTransforms for i in self.transforms] if not t == None]
+				if len(xfms) == 1: xfms = xfms[0]
+				return xfms
+			else:
+				return None
+			
 		
 	property inverse:
 		def __get__(self):

@@ -63,7 +63,7 @@ def nonlinearResample(source,transform,like,invert=False,order=2):
 	
 
 
-def resample(source,transform,like,invert=False,order=2):
+def resample(source,transform,like,invert=False,order=3):
 	allLinear = len([1 for i in transform.transforms if i.transformType == 'grid']) == 0
 	if allLinear:
 		return linearResample(source,transform,like,invert,order=order)

@@ -119,6 +119,8 @@ cdef extern from "volume_io.h":
 		VIO_General_transform    *transforms
 		
 		
+	void  delete_general_transform(VIO_General_transform   *transform )	
+	
 	int  get_n_concated_transforms(VIO_General_transform   *transform )
 	
 	void  general_transform_point(
