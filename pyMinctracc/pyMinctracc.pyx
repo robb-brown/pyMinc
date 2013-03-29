@@ -69,9 +69,10 @@ cdef class Minctracc(object):
 		if cArgs.trans_info.transform_type == TRANS_NONLIN:
 			smd = source.metadata
 			if not smd['dtype'] == np.float64:
-				source = VIOVolume(source.astype(np.float64),**smd)
-			if not smd['dtype'] == np.float64:
-				target = VIOVolume(target.astype(np.float64),**smd)
+				source = VIOVolume(source.data.astype(np.float64),**smd)
+			tmd = target.metadata
+			if not tmd['dtype'] == np.float64:
+				target = VIOVolume(target.data.astype(np.float64),**tmd)
 
 		cdef VIO_General_transform *initial = NULL
 		cdef VIO_General_transform *final = NULL
