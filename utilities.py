@@ -1,7 +1,7 @@
 from scipy.ndimage.interpolation import *
 from scipy.ndimage import *
 from numpy import *
-import mincUtils as minc
+import lingo.mincUtils as minc
 from pyMinc import VIOVolume, VIOGeneralTransform
 
 
