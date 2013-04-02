@@ -33,6 +33,8 @@ cdef class Minctracc(object):
 		'xcorr' : XCORR,
 		'mi' : MUTUAL_INFORMATION,
 		'nmi' : NORMALIZED_MUTUAL_INFORMATION,
+		'nlxcorr' : NONLIN_XCORR,
+		'corrcoef' : NONLIN_CORRCOEFF,
 		
 		# optimizer
 		'simplex' : OPT_SIMPLEX,
@@ -55,15 +57,25 @@ cdef class Minctracc(object):
 				cArgs.step[0] = float(v[0]); cArgs.step[1] = float(v[1]); cArgs.step[2] = float(v[2])
 			if k == 'optimizer':
 				cArgs.optimize_type = self.translator[v]
+			if k == 'latticeDiameter':
+				cArgs.lattice_width[0] = float(v[0]); cArgs.lattice_width[1] = float(v[1]); cArgs.lattice_width[2] = float(v[2]);
+			if k == 'supersample':
+				cArgs.trans_info.use_super = v 
 			
 	
 	
 	def minctracc(self,source,target,sourceMask=None,targetMask=None,initialXFM=None,iterations=4,**args):
+	
+		if args.get('transformType',None) == 'nonlinear':
+			if args.get('metric',None) == None:
+				args['metric'] = 'corrcoef'
+			elif args['metric'] == 'xcorr':
+				args['metric'] = 'nlxcorr'
 		
-		weight = args.get('weight',1); args['weight'] = None; args.pop('weight')
-		stiffness = args.get('stiffness',1); args['stiffness'] = None; args.pop('stiffness')
-		similarity = args.get('similarity',0.3); args['similarity'] = None; args.pop('similarity')
-		sub_lattice = args.get('sub_lattice',6); args['sub_lattice'] = None; args.pop('sub_lattice')
+		weight = args.get('weight',0.6); args['weight'] = None; args.pop('weight')
+		stiffness = args.get('stiffness',0.5); args['stiffness'] = None; args.pop('stiffness')
+		similarity = args.get('similarity',0.5); args['similarity'] = None; args.pop('similarity')
+		sub_lattice = args.get('sub_lattice',5); args['sub_lattice'] = None; args.pop('sub_lattice')
 		
 		cdef Arg_Data *cArgs = NULL
 		ALLOC(cArgs,1)
