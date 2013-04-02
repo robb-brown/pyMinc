@@ -60,6 +60,11 @@ cdef class Minctracc(object):
 	
 	def minctracc(self,source,target,sourceMask=None,targetMask=None,initialXFM=None,iterations=4,**args):
 		
+		weight = args.get('weight',1); args['weight'] = None; args.pop('weight')
+		stiffness = args.get('stiffness',1); args['stiffness'] = None; args.pop('stiffness')
+		similarity = args.get('similarity',0.3); args['similarity'] = None; args.pop('similarity')
+		sub_lattice = args.get('sub_lattice',6); args['sub_lattice'] = None; args.pop('sub_lattice')
+		
 		cdef Arg_Data *cArgs = NULL
 		ALLOC(cArgs,1)
 		initializeArgs(cArgs)
@@ -87,7 +92,7 @@ cdef class Minctracc(object):
 		sourceMaskC = <VIO_Volume>PyCapsule_GetPointer(sourceMask.volumePtr,NULL) if sourceMask else NULL
 		targetMaskC = <VIO_Volume>PyCapsule_GetPointer(targetMask.volumePtr,NULL) if targetMask else NULL
 		
-		final = minctracc(sourceC,targetC,sourceMaskC,targetMaskC,initial,iterations,cArgs)
+		final = minctracc(sourceC,targetC,sourceMaskC,targetMaskC,initial,iterations,weight,stiffness,similarity,sub_lattice,cArgs)
 
 		finalXFM = VIOGeneralTransform(PyCapsule_New(<void*>final,NULL,NULL))
 		
