@@ -190,11 +190,15 @@ cdef class VIOVolume:
 		if not data == None:
 			if data.__class__ == str:
 				self.read(data,**args)
+			elif data.__class__ == VIOVolume:
+				args = data.metadata
+				self.createWithData(data.data,args.get('spacing',None),args.get('starts',None),args.get('names',None))
 			else:
 				self.createWithData(data,args.get('spacing',None),args.get('starts',None),args.get('names',None))
 				
-	def __del__(self):
+	def __dealloc__(self):
 		if not self.volume == NULL and self.owner:
+			print 'dealloc volume'
 			delete_volume(self.volume)
 		if not self.options == NULL:
 			FREE(self.options)
@@ -228,7 +232,6 @@ cdef class VIOVolume:
 		cdef VIO_Volume vol = NULL
 		cdef char **dim_names = NULL
 		cdef np.ndarray vec
-		
 		
 		dimN = len(np.shape(data))
 
@@ -269,6 +272,9 @@ cdef class VIOVolume:
 		data = np.require(data,requirements='C')
 		memcpy(<char*>dataPtr,<char*>data.data,voxels*size)
 		
+		if not self.volume == NULL:
+			delete_volume(self.volume)
+
 		self.volume = vol
 		self.owner = True
 
@@ -334,7 +340,7 @@ cdef class VIOVolume:
 		ALLOC(xfm,1)
 		info = self.metadata
 		compute_world_transform(self.volume.spatial_axes,self.volume.separations,self.volume.direction_cosines,self.volume.starts,xfm)
-		transform = VIOGeneralTransform(); transform.setTransformPtr(xfm)
+		transform = VIOGeneralTransform(); transform.setTransformPtr(xfm);
 		return transform
 
 	
@@ -353,6 +359,10 @@ cdef class VIOVolume:
 		cdef np.ndarray transformed = np.zeros(self.volume.array.n_dimensions,np.float64)
 		convert_world_to_voxel(self.volume,point[0],point[1],point[2],<VIO_Real*>transformed.data)
 		return transformed
+		
+		
+	def setOwnership(self,owner):
+		self.owner = owner
 		
 		
 	property voxelToWorldTransform:
@@ -421,10 +431,14 @@ cdef class VIOVolume:
 cdef class VIOGeneralTransform:
 
 	cdef VIO_General_transform *transform
-	cdef int owner
+	cdef int ownerFlag
+	cdef list xfms
 
 
 	def __init__(self,ptr=None,owner=True):
+		self.xfms = []
+		self.ownerFlag = owner
+		print "Setting owner to %s.  It is %s" % (owner,self.ownerFlag)
 		if not ptr == None:
 			if PyCapsule_IsValid(ptr,NULL):
 				self.transform = <VIO_General_transform *>PyCapsule_GetPointer(ptr,NULL)
@@ -433,7 +447,7 @@ cdef class VIOGeneralTransform:
 			else:
 				ALLOC(self.transform,1)
 				self.setupTransform(self.transform,ptr)
-		self.owner = owner
+			self.finishSetup()
 
 
 	cdef setupTransform(self,VIO_General_transform *xfmPtr,data,inverseFlag=False):		
@@ -441,10 +455,11 @@ cdef class VIOGeneralTransform:
 		cdef np.ndarray xfm
 		cdef int i,inverse_flag
 		if data.__class__ == VIOGeneralTransform:
-			self.setupTransform(xfmPtr,data.getData(noInverse=True),data.inverseFlag)
+			self.setupTransform(xfmPtr,data.getData(noInverse=True,copy=True),data.inverseFlag)
 		if data.__class__ == VIOVolume:
 			xfmPtr.type = GRID_TRANSFORM
 			xfmPtr.inverse_flag = inverseFlag
+			data.setOwnership(False)
 			xfmPtr.displacement_volume = <VIO_Volume>PyCapsule_GetPointer(data.volumePtr,NULL)
 			xfmPtr.n_transforms = 1
 		elif np.shape(data) == (4,4):
@@ -467,10 +482,25 @@ cdef class VIOGeneralTransform:
 			for i,x in enumerate(data):
 				self.setupTransform(xfmPtr.transforms+i,x,False)
 			xfmPtr.n_transforms = len(data)
+			
+			
+	cdef finishSetup(self):
+		self.xfms = []
+		if self.transformType == 'concatenated':
+			for i in range(0,self.transform.n_transforms):
+				xfm = VIOGeneralTransform(owner=False)
+				xfm.setTransformPtr(&self.transform.transforms[i],0)
+				xfm.finishSetup()
+				self.xfms.append(xfm)
 
 
-	def __del__(self):
-		if not self.transform == NULL and self.owner:
+	def __dealloc__(self):
+#		print 'dealloc transform %d %s' % (self.transform.type,self.ownerFlag)
+		print 'In dealloc transform %s owner: %s' % (self.transformType,self.ownerFlag)
+		if not self.transform == NULL and self.ownerFlag:
+			print '	dealloc transform'
+			for i in self.xfms:
+				del i
 			delete_general_transform(self.transform)
 
 	def __getstate__(self):
@@ -486,7 +516,7 @@ cdef class VIOGeneralTransform:
 	
 	cdef setTransformPtr(self,VIO_General_transform *ptr,int owner=1):
 		self.transform = ptr
-		self.owner = owner
+		self.ownerFlag = owner
 			
 
 	def write(self,fname,comments=''):
@@ -615,11 +645,11 @@ cdef class VIOGeneralTransform:
 			self.transform.inverse_linear_transform = ltransform
 		
 		
-	def getData(self,noInverse=False):
+	def getData(self,noInverse=False,copy=False):
 		cdef np.ndarray xfm = np.zeros((4,4),np.float64)
 		if self.transform.type == CONCATENATED_TRANSFORM:
 			transforms = self.transforms
-			return [i.getData(noInverse) for i in transforms]
+			return [i.getData(noInverse,copy) for i in transforms]
 		elif self.transform.type == LINEAR:
 			memcpy(<char*>xfm.data,<char*>self.transform.linear_transform.m[0],16*8)
 			if self.inverseFlag and not noInverse:
@@ -629,8 +659,10 @@ cdef class VIOGeneralTransform:
 			if self.transform.inverse_flag and not noInverse:
 				return self.getDeformation(invert=True)
 			else:
-				grid = VIOVolume();
+				grid = VIOVolume(owner=False);
 				grid.setVolumePtr(<VIO_Volume>self.transform.displacement_volume,0)
+				if copy:
+					return VIOVolume(grid,owner=True)
 				return grid
 		
 		
@@ -707,12 +739,15 @@ cdef class VIOGeneralTransform:
 		def __get__(self):
 			if self.transform.type == CONCATENATED_TRANSFORM:	
 				transforms = []
-				for i in range(0,self.transform.n_transforms):
-					xfm = VIOGeneralTransform(); xfm.setTransformPtr(&self.transform.transforms[i])
-					transforms.append(xfm)
+				for i in self.xfms:
+					transforms += i.transforms
 			else:
 				return [self]
 			return transforms
+			
+	property owner:
+		def __get__(self):
+			return self.ownerFlag
 			
 			
 	property data:
