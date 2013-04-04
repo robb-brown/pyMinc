@@ -34,7 +34,7 @@ cdef class Minctracc(object):
 		'mi' : MUTUAL_INFORMATION,
 		'nmi' : NORMALIZED_MUTUAL_INFORMATION,
 		'nlxcorr' : NONLIN_XCORR,
-		'corrcoef' : NONLIN_CORRCOEFF,
+		'corrcoeff' : NONLIN_CORRCOEFF,
 		
 		# optimizer
 		'simplex' : OPT_SIMPLEX,
@@ -68,7 +68,7 @@ cdef class Minctracc(object):
 	
 		if args.get('transformType',None) == 'nonlinear':
 			if args.get('metric',None) == None:
-				args['metric'] = 'corrcoef'
+				args['metric'] = 'corrcoeff'
 			elif args['metric'] == 'xcorr':
 				args['metric'] = 'nlxcorr'
 		
