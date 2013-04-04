@@ -6,8 +6,10 @@ from pyMinc import VIOVolume, VIOGeneralTransform
 
 
 def blurImage(image,level):
-	size = level / 2 / 2.35
-	return VIOVolume(filters.gaussian_filter(image.data,sigma=size,mode='constant'),**image.metadata)
+	size = level / 2. / 2.35			# sigma in mm
+	spacing = array(image.metadata['spacing'])
+	sizes = size / spacing
+	return VIOVolume(filters.gaussian_filter(image.data,sigma=sizes,mode='constant'),**image.metadata)
 	
 
 def linearResample(source,transform,like,invert=False,order=2):
