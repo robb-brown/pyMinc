@@ -410,26 +410,36 @@ cdef class VIOVolume:
 				for m in range(0,VIO_N_DIMENSIONS):
 					volume['cosines'][i].append(self.volume.direction_cosines[i][m])
 			return volume			
-			
+	
+	
+	def getData(self,copy=True):
+		cdef int i
+		cdef np.ndarray data
+		volume = self.metadata
+		cdef void *dataPtr = NULL
+		cdef np.ndarray tempArr = np.zeros(volume['dimensions'],np.int64)
+		GET_VOXEL_PTR(dataPtr,self.volume,0,0,0,0,0)
+		typenum = np.dtype(volume['dtype']).num
+		for i in range(0,volume['dimensions']):
+			tempArr[i] = self.volume.array.sizes[i]
+		if copy:
+			dtype = np.dtype(volume['dtype'])
+			data = np.zeros(tempArr,dtype)
+			memcpy(<char*>data.data,<char*>dataPtr,dtype.itemsize*np.product(tempArr))
+		else:
+			data = np.PyArray_SimpleNewFromData(volume['dimensions'],<np.npy_intp*>tempArr.data,typenum,dataPtr)
+
+		# USE THIS TO COPY THE DATA TO PYTHON INSTEAD OF JUST WRAPPING A NUMPY ARRAY AROUND IT
+#		np.zeros(np.product(volume['shape']),volume['dtype'])
+#		count=data.dtype.itemsize*np.product(volume['shape'])
+#		memcpy(<char*>data.data,<char*>dataPtr,count)
+
+		return data
+		
 			
 	property data:
 		def __get__(self):
-			cdef int i
-			volume = self.metadata
-			cdef void *dataPtr = NULL
-			cdef np.ndarray tempArr = np.zeros(volume['dimensions'],np.int64)
-			GET_VOXEL_PTR(dataPtr,self.volume,0,0,0,0,0)
-			typenum = np.dtype(volume['dtype']).num
-			for i in range(0,volume['dimensions']):
-				tempArr[i] = self.volume.array.sizes[i]
-			cdef np.ndarray data = np.PyArray_SimpleNewFromData(volume['dimensions'],<np.npy_intp*>tempArr.data,typenum,dataPtr)
-
-			# USE THIS TO COPY THE DATA TO PYTHON INSTEAD OF JUST WRAPPING A NUMPY ARRAY AROUND IT
-	#		np.zeros(np.product(volume['shape']),volume['dtype'])
-	#		count=data.dtype.itemsize*np.product(volume['shape'])
-	#		memcpy(<char*>data.data,<char*>dataPtr,count)
-
-			return data
+			return self.getData(copy=True)
 	
 
 		
@@ -645,6 +655,10 @@ cdef class VIOGeneralTransform:
 		self.transform.inverse_flag = not self.transform.inverse_flag
 		
 		
+	def setOwnership(self,owner):
+		self.ownerFlag = owner
+		
+		
 	def calculateInverseLinearTransform(self):
 		cdef VIO_Transform *ltransform = NULL
 		cdef np.ndarray xfm
@@ -764,7 +778,7 @@ cdef class VIOGeneralTransform:
 			
 	property data:
 		def __get__(self):
-			return self.getData()
+			return self.getData(copy=True)
 			
 
 	property transformPtr:
