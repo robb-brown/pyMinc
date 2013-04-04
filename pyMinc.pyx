@@ -12,6 +12,8 @@ import traceback
 
 np.import_array()
 
+debug = False
+
 
 ncTypeToNumpy = {	NC_BYTE : {True:np.int8, False:np.uint8},
 					NC_CHAR : {True:np.int8, False:np.uint8},
@@ -183,10 +185,13 @@ cdef class VIOVolume:
 	
 	cdef VIO_Volume volume
 	cdef minc_input_options *options
-	cdef int owner
+	cdef int ownerFlag
+	
+	def __cinit__(self,data=None,**args):
+		self.ownerFlag = True
 		
 	def __init__(self,data=None,**args):
-		self.owner = True
+		if debug: print "Allocating volume %s" % `self`
 		if not data == None:
 			if data.__class__ == str:
 				self.read(data,**args)
@@ -197,8 +202,9 @@ cdef class VIOVolume:
 				self.createWithData(data,args.get('spacing',None),args.get('starts',None),args.get('names',None))
 				
 	def __dealloc__(self):
-		if not self.volume == NULL and self.owner:
-			print 'dealloc volume'
+		if debug: print 'dealloc volume %s owner: %s' % (`self`,self.ownerFlag)
+		if not self.volume == NULL and self.ownerFlag:
+			if debug: print '	actually deallocating volume'
 			delete_volume(self.volume)
 		if not self.options == NULL:
 			FREE(self.options)
@@ -218,7 +224,7 @@ cdef class VIOVolume:
 			
 	cdef setVolumePtr(self,VIO_Volume vol,int owner=1):
 		self.volume = vol
-		self.owner = owner
+		self.ownerFlag = owner
 		
 
 	cdef alloc_volume_data(self,VIO_Volume volume):
@@ -276,7 +282,7 @@ cdef class VIOVolume:
 			delete_volume(self.volume)
 
 		self.volume = vol
-		self.owner = True
+		self.ownerFlag = True
 
 		return True
 
@@ -362,7 +368,7 @@ cdef class VIOVolume:
 		
 		
 	def setOwnership(self,owner):
-		self.owner = owner
+		self.ownerFlag = owner
 		
 		
 	property voxelToWorldTransform:
@@ -370,7 +376,7 @@ cdef class VIOVolume:
 			cdef VIO_General_transform *xfm = NULL
 			xfm = get_voxel_to_world_transform(self.volume)
 			transform = VIOGeneralTransform()
-			transform.setTransformPtr(xfm); transform.owner = False
+			transform.setTransformPtr(xfm); transform.setOwnership(False)
 			return transform
 		
 		
@@ -438,7 +444,7 @@ cdef class VIOGeneralTransform:
 	def __init__(self,ptr=None,owner=True):
 		self.xfms = []
 		self.ownerFlag = owner
-		print "Setting owner to %s.  It is %s" % (owner,self.ownerFlag)
+		if debug: print "Allocating transform %s.  Setting owner to %s.  It is %s" % (`self`,owner,self.ownerFlag)
 		if not ptr == None:
 			if PyCapsule_IsValid(ptr,NULL):
 				self.transform = <VIO_General_transform *>PyCapsule_GetPointer(ptr,NULL)
@@ -454,15 +460,20 @@ cdef class VIOGeneralTransform:
 		cdef VIO_Transform *ltransform = NULL
 		cdef np.ndarray xfm
 		cdef int i,inverse_flag
+		if debug: print "Setting up transform %s.  Data is %s" % (`self`,`data`)
 		if data.__class__ == VIOGeneralTransform:
-			self.setupTransform(xfmPtr,data.getData(noInverse=True,copy=True),data.inverseFlag)
+			if debug: print "	Data is a transform.  Getting data and setting up again"
+			self.setupTransform(xfmPtr,data.getData(noInverse=True,copy=False),data.inverseFlag)
 		if data.__class__ == VIOVolume:
+			if debug: print "	Data is a volume.  Setting up a grid transform"
+			data = VIOVolume(data,owner=False)			# Make a copy
+			data.setOwnership(False)					# We're going to toss the VIOVolume, but we don't want it deallocing the pointer
 			xfmPtr.type = GRID_TRANSFORM
 			xfmPtr.inverse_flag = inverseFlag
-			data.setOwnership(False)
 			xfmPtr.displacement_volume = <VIO_Volume>PyCapsule_GetPointer(data.volumePtr,NULL)
 			xfmPtr.n_transforms = 1
 		elif np.shape(data) == (4,4):
+			if debug: print "	Data is a linear transform"
 			xfmPtr.type = LINEAR
 			xfmPtr.inverse_flag = inverseFlag
 			xfm = np.array(data,np.float64)
@@ -475,7 +486,8 @@ cdef class VIOGeneralTransform:
 			memcpy(<char*>ltransform.m[0],<char*>xfm.data,16*8)	
 			xfmPtr.inverse_linear_transform = ltransform
 			xfmPtr.n_transforms = 1
-		elif len(np.shape(data)) == 1:
+		elif data.__class__ in [list,tuple]:
+			if debug: print "	Data is a list.  Setting up a concatenated transform."
 			xfmPtr.type = CONCATENATED_TRANSFORM
 			xfmPtr.inverse_flag = inverseFlag
 			ALLOC(xfmPtr.transforms,len(data))
@@ -495,10 +507,10 @@ cdef class VIOGeneralTransform:
 
 
 	def __dealloc__(self):
-#		print 'dealloc transform %d %s' % (self.transform.type,self.ownerFlag)
-		print 'In dealloc transform %s owner: %s' % (self.transformType,self.ownerFlag)
+#		if debug: print 'dealloc transform %d %s' % (self.transform.type,self.ownerFlag)
+		if debug: print 'In dealloc transform %s %s owner: %s' % (`self`,self.transformType,self.ownerFlag)
 		if not self.transform == NULL and self.ownerFlag:
-			print '	dealloc transform'
+			if debug: print '	dealloc transform'
 			for i in self.xfms:
 				del i
 			delete_general_transform(self.transform)
@@ -706,7 +718,7 @@ cdef class VIOGeneralTransform:
 				xfms = [i.inverse for i in self.transforms]
 				newTransform = VIOGeneralTransform(xfms[::-1])
 			else:
-				print "I don't know how to handle this kind of transform"
+				if debug: print "I don't know how to handle this kind of transform"
 				newTransform = None
 			return newTransform
 	
