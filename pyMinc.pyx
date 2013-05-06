@@ -690,6 +690,16 @@ cdef class VIOGeneralTransform:
 				if copy:
 					return VIOVolume(grid,owner=True)
 				return grid
+				
+				
+	property linear:
+		def __get__(self):
+			if self.transformType == 'linear':
+				return True
+			elif self.transformType == 'concatenated':
+				return np.array([i.linear for i in self.transforms]).all()
+			else:
+				return False
 		
 		
 	property linearTransforms:
