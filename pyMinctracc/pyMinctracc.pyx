@@ -49,7 +49,13 @@ cdef class Minctracc(object):
 				cArgs.flags.verbose = v
 			if k == 'transformType':
 				cArgs.trans_info.transform_type = self.translator[v]
-			if k == 'interpolation' :
+			if k == 'estimateTranslations':
+				cArgs.trans_flags.estimate_trans = v
+			if k == 'estimateScales':
+				cArgs.trans_flags.estimate_scale = v
+			if k == 'estimateCenter':
+				cArgs.trans_flags.estimate_center = v
+			if k == 'interpolation':
 				cArgs.interpolant_type = self.translator[v]
 			if k == 'metric' :
 				cArgs.obj_function_type = self.translator[v]
@@ -73,6 +79,7 @@ cdef class Minctracc(object):
 				args['metric'] = 'nlxcorr'
 		
 		weight = args.get('weight',0.6); args['weight'] = None; args.pop('weight')
+		simplexSize = args.get('simplexSize',20); args['simplexSize'] = None; args.pop('simplexSize')
 		stiffness = args.get('stiffness',0.5); args['stiffness'] = None; args.pop('stiffness')
 		similarity = args.get('similarity',0.5); args['similarity'] = None; args.pop('similarity')
 		sub_lattice = args.get('sub_lattice',5); args['sub_lattice'] = None; args.pop('sub_lattice')
@@ -104,7 +111,9 @@ cdef class Minctracc(object):
 		sourceMaskC = <VIO_Volume>PyCapsule_GetPointer(sourceMask.volumePtr,NULL) if sourceMask else NULL
 		targetMaskC = <VIO_Volume>PyCapsule_GetPointer(targetMask.volumePtr,NULL) if targetMask else NULL
 		
-		final = minctracc(sourceC,targetC,sourceMaskC,targetMaskC,initial,iterations,weight,stiffness,similarity,sub_lattice,cArgs)
+#		final = minctracc(sourceC,targetC,sourceMaskC,targetMaskC,initial,iterations,weight,stiffness,similarity,sub_lattice,cArgs)
+
+		final = minctracc(sourceC,targetC,sourceMaskC,targetMaskC,initial,iterations,weight,simplexSize,stiffness,similarity,sub_lattice,cArgs)
 
 		finalXFM = VIOGeneralTransform(PyCapsule_New(<void*>final,NULL,NULL))
 		

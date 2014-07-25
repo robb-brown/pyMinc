@@ -12,7 +12,7 @@ def blurImage(image,level):
 	return VIOVolume(filters.gaussian_filter(image.data,sigma=sizes,mode='constant'),**image.metadata)
 	
 
-def linearResample(source,transform,like,invert=False,order=2):
+def linearResample(source,transform,like,invert=False,order=3,originalSpacing=False):
 	if transform.__class__ == VIOGeneralTransform:
 		xfm = mat(transform.data)
 	else:
@@ -26,11 +26,18 @@ def linearResample(source,transform,like,invert=False,order=2):
 	starts = array(metadata['starts'])[metadata['spatialAxes']]
 	extents = array(metadata['shape'])[metadata['spatialAxes']]
 
-	# Get the (flipped) source to world transform
+	# Get the source to world transform
 	sourceToWorld = mat(minc.xfmFromParameters(translations=starts,scales=spacing))
 	
-	# Get the target to world transform.  Note that this is assuming the atlas, which doesn't need to be flipped
+	# Get the target to world transform.
 	targetToWorld = mat(target.voxelToWorldTransform.data)
+	
+	# Idea here is to change the targetToWorld transform so the output spacing is equal to the source spacing.
+	# Might have to change the starts too
+	if originalSpacing:
+		params = minc.xfmParameters(targetToWorld)
+		params['scales'] = spacing
+		targetToWorld = minc.xfmFromParameters(**params)
 	
 	# Total source voxel to target voxel transform, inverted
 	# It's important to multiply backwards, and don't forget about order of operations!
@@ -51,7 +58,11 @@ def linearResample(source,transform,like,invert=False,order=2):
 	# Put the transformed axes back in the MINC order.  Note that we should check for negative spacing and flip here too
 	linearResampled = transpose(linearResampled,target.metadata['spatialAxes'])
 	
-	return VIOVolume(linearResampled,**like.metadata)
+	metadata = dict(like.metadata)
+	if originalSpacing:
+		metadata['spacing'] = spacing[metadata['spatialAxes']]
+	
+	return VIOVolume(linearResampled,**metadata)
 	
 	
 def nonlinearResample(source,transform,like,invert=False,order=2):
@@ -66,6 +77,8 @@ def nonlinearResample(source,transform,like,invert=False,order=2):
 
 
 def resample(source,transform,like,invert=False,order=3):
+	if order.__class__ == str and order.startswith('nearest'):
+		order = 0
 	allLinear = len([1 for i in transform.transforms if i.transformType == 'grid']) == 0
 	if allLinear:
 		return linearResample(source,transform,like,invert,order=order)

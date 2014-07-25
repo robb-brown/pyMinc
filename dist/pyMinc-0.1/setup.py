@@ -31,5 +31,5 @@ setup(
 	include_dirs = [numpy.get_include()],
 	ext_package = 'pyMinc',
   	ext_modules = ext_modules,
-	py_modules = ['pyMinc.examples','pyMinc.mincUtils','pyMinc.mutualInformation','pyMinc.myTempfile','pyMinc.utilities','pyMinc.xfmParam']
+	py_modules = ['pyMinc.examples','pyMinc.utilities']
 )

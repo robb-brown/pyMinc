@@ -3,4 +3,4 @@ include setup-cython.py
 include *.pxd
 include *.pyx
 include *.h
-exclude pyMinc.c
+include *.py
