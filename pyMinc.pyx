@@ -653,6 +653,7 @@ cdef class VIOGeneralTransform:
 		
 	def flipInverseFlag(self):
 		self.transform.inverse_flag = not self.transform.inverse_flag
+		self.calculateInverseLinearTransform
 		
 		
 	def setOwnership(self,owner):
