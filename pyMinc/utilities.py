@@ -14,11 +14,16 @@ def blurImage(image,level):
 
 def linearResample(source,transform,like,invert=False,order=3,originalSpacing=False):
 	if transform.__class__ == VIOGeneralTransform:
-		xfm = mat(transform.data)
+		xfm = transform.data
 	else:
-		xfm = mat(transform)
-		
-	if alltrue(xfm == identity(4)):
+		xfm = transform
+
+	if xfm.__class__ in (list,tuple) and not len(shape(xfm)) == 2:
+		xfm = mat(minc.concatenateXFMs(xfm))
+	else:
+		xfm = mat(xfm)
+				
+	if alltrue(xfm == identity(4)) and like is None:
 		return VIOVolume(source)
 		
 	if invert:
@@ -69,11 +74,32 @@ def linearResample(source,transform,like,invert=False,order=3,originalSpacing=Fa
 	return VIOVolume(linearResampled,**metadata)
 	
 	
+	
+def mincResample(source,xfm,like,invert=False):
+	print "WARNING: Using MINC nonlinear resampling"
+	import os.path as p
+		
+	tempdir = minc.getTempDir()
+	source.write(p.join(tempdir,'source.mnc.gz'))
+	like.write(p.join(tempdir,'like.mnc.gz'))
+	xfm.write(p.join(tempdir,'xfm.xfm'))
+	minc.resample(p.join(tempdir,'source.mnc.gz'),p.join(tempdir,'resampled.mnc.gz'),xfm=p.join(tempdir,'xfm.xfm'),like=p.join(tempdir,'like.mnc.gz'),simpleResample=True)
+	resampled = VIOVolume(p.join(tempdir,'resampled.mnc.gz'))
+	print "mincresample dir: %s" % tempdir
+	minc.releaseTempDir(tempdir)								# DEBUG
+	return resampled
+
+	
 def nonlinearResample(source,transform,like,invert=False,order=2):
 	if invert:
 		xfm = transform.inverse
 	else:
 		xfm = transform
+
+	# DEBUG - using MINC resampling for now
+	return mincResample(source,xfm,like,invert)
+		
+		
 	cMap = xfm.getDeformation(invert=True,coordinateMap=True,source=source,target=like).data
 	nonlinearResampled = map_coordinates(source.data,cMap,order=order)
 	return VIOVolume(nonlinearResampled,**like.metadata)
