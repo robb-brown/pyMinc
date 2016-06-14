@@ -4,7 +4,7 @@ from Cython.Distutils import build_ext
 import numpy
 
 
-libraries = ['minc2','volume_io2','netcdf','hdf5','curl','minctracc']
+libraries = ['minc2','netcdf','hdf5','curl','minctracc']# 'volume_io2' - volume_io2 is in minc2 in newer versions
 include_dirs = ['.','pyMinctracc','/usr/local/include','/usr/local/minc-toolkit/include']
 library_dirs = ['.','pyMinctracc','/usr/lib','/usr/local/lib','/usr/local/minc-toolkit/lib']
 
