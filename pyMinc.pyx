@@ -28,8 +28,7 @@ numpyToNCType = {	np.int8	: (NC_BYTE,True), 	np.uint8	: (NC_BYTE,False),
 					np.int32 : (NC_INT,True), 	np.uint32	: (NC_INT,False), 
 					np.float32 : (NC_FLOAT,True),
 					np.float64 : (NC_DOUBLE,True),
-}
-				
+}		
 
 
 # libminc MINC file reading
@@ -633,13 +632,21 @@ cdef class VIOGeneralTransform:
 					if not coord_map_flag:					# Just make a world-space deformation map
 						vcoord[0] = 0; vcoord[1] = z; vcoord[2] = y; vcoord[3] = x
 						convert_voxel_to_world(vol,vcoord,wcoord,wcoord+1,wcoord+2)
-						transform_or_invert_point(xfm,invert_flag,wcoord[0],wcoord[1],wcoord[2],wcoord_t,wcoord_t+1,wcoord_t+2)
+
+						if invert_flag:
+							general_inverse_transform_point(xfm,wcoord[0],wcoord[1],wcoord[2],wcoord_t,wcoord_t+1,wcoord_t+2)
+						else:
+							general_transform_point(xfm,wcoord[0],wcoord[1],wcoord[2],wcoord_t,wcoord_t+1,wcoord_t+2)
+						
 						for v in range(0,3):
 							value = wcoord_t[v] - wcoord[v]
 							output[v,z,y,x] = value
 							
 					else:								# Make a voxel to voxel deformation map
-						transform_or_invert_point(xfm,invert_flag,x,y,z,wcoord_t,wcoord_t+1,wcoord_t+2)
+						if invert_flag:
+							general_inverse_transform_point(xfm,x,y,z,wcoord_t,wcoord_t+1,wcoord_t+2)
+						else:
+							general_transform_point(xfm,x,y,z,wcoord_t,wcoord_t+1,wcoord_t+2)
 						output[0,z,y,x] = wcoord_t[2]
 						output[1,z,y,x] = wcoord_t[1]
 						output[2,z,y,x] = wcoord_t[0]

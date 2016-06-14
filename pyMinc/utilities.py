@@ -36,21 +36,23 @@ def linearResample(source,transform,like,invert=False,order=3,originalSpacing=Fa
 	extents = array(metadata['shape'])[metadata['spatialAxes']]
 
 	# Get the source to world transform
-	sourceToWorld = mat(minc.xfmFromParameters(translations=starts,scales=spacing))
+	sourceToWorld = mat(source.voxelToWorldTransform.data)
 	
 	# Get the target to world transform.
 	targetToWorld = mat(target.voxelToWorldTransform.data)
 	
 	# Idea here is to change the targetToWorld transform so the output spacing is equal to the source spacing.
 	# Might have to change the starts too
-	if originalSpacing:
-		params = minc.xfmParameters(targetToWorld)
-		params['scales'] = spacing
-		targetToWorld = minc.xfmFromParameters(**params)
+	# if originalSpacing:
+	# 	params = minc.xfmParameters(targetToWorld)
+	# 	params['scales'] = spacing
+	# 	targetToWorld = minc.xfmFromParameters(**params)
 	
 	# Total source voxel to target voxel transform, inverted
 	# It's important to multiply backwards, and don't forget about order of operations!
 	total = (targetToWorld.I*(xfm*sourceToWorld)).I
+	
+	#total = targetToWorld*xfm.I*sourceToWorld
 	
 	# These could be useful for doing transform input sampling
 	e1 = (total*mat([0,0,0,1]).T).T
@@ -58,13 +60,13 @@ def linearResample(source,transform,like,invert=False,order=3,originalSpacing=Fa
 	s1 = (total*mat([1,1,1,1]).T).T - e1
 	#outputShape = (array(maximum(e1,e2)+1)[0,0:3]).astype(int16).tolist()   
 	
-	# Use this if there's a like (using the target for this one)
+	# Get the shape for our output image
 	outputShape = array(target.metadata['shape'])[target.metadata['spatialAxes']]
 	
 	# Do the actual (linear) transform
 	linearResampled = affine_transform(im,total[0:3,0:3],offset=array(total)[0:3,3],output_shape=outputShape,order=order)
 	
-	# Put the transformed axes back in the MINC order.  Note that we should check for negative spacing and flip here too
+	# Put the transformed axes back in the MINC order.  It doesn't appear to be necessary to flip if spacing is negative.
 	linearResampled = transpose(linearResampled,target.metadata['spatialAxes'])
 	
 	metadata = dict(like.metadata)

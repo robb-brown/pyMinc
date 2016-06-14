@@ -131,16 +131,25 @@ cdef extern from "volume_io.h":
 		VIO_Real                *x_transformed,
 		VIO_Real                *y_transformed,
 		VIO_Real                *z_transformed )
-	
-	void  transform_or_invert_point(
+
+	void  general_inverse_transform_point(
 		VIO_General_transform   *transform,
-		VIO_BOOL             inverse_flag,
 		VIO_Real                x,
 		VIO_Real                y,
 		VIO_Real                z,
 		VIO_Real                *x_transformed,
 		VIO_Real                *y_transformed,
 		VIO_Real                *z_transformed )
+
+	# void  transform_or_invert_point(
+	# 	VIO_General_transform   *transform,
+	# 	VIO_BOOL             inverse_flag,
+	# 	VIO_Real                x,
+	# 	VIO_Real                y,
+	# 	VIO_Real                z,
+	# 	VIO_Real                *x_transformed,
+	# 	VIO_Real                *y_transformed,
+	# 	VIO_Real                *z_transformed )
 		
 		
 	void  concat_general_transforms(
