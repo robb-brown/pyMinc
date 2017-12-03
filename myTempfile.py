@@ -22,13 +22,24 @@ assigned = []
 def mkdtemp(fast=False):
 	if fast:
 		if p.exists('/Volumes/lingoRamDisk'):
-			path = p.join('/Volumes/lingoRamDisk','lingo-%s' % `int(random.random()*10000000)`)
-			os.mkdir(path)
+			try:
+				path = p.join('/Volumes/lingoRamDisk','lingo-%s' % `int(random.random()*100000000000)`)
+				tries = 0
+				while (p.exists(path)) and tries < 10:
+					tries += 1
+					path = p.join('/Volumes/lingoRamDisk','lingo-%s' % `int(random.random()*100000000000)`)
+				if p.exists(path):
+					print "Tried ten times but could not make a unique tempdir! Returning a slow one."
+					path = tempfile.mkdtemp()
+				else:
+					os.mkdir(path)
+			except:
+				print "Exception making fast temp dir (RAM disk full?).  Defaulting to a slow one."
+				path = tempfile.mkdtemp()
 		else:
-			print "Asked for a fast temp file but no RAM disk exists."
 			path = tempfile.mkdtemp() 
 	else:
-		path = tempfile.mkdtemp() 
+		path = tempfile.mkdtemp()
 	assigned.append(path)
 	return path
 
@@ -71,3 +82,26 @@ def printException(s1 = None):
 	print s.getvalue()
 	s.close()
 	
+def printError(s1):
+	s = sIO.StringIO()
+	s.write(bcolors.RED)
+	s.write(s1+'\n')
+	s.write(bcolors.END+'\n')
+	print s.getvalue()
+	s.close()
+	
+def printWarning(s1):
+	s = sIO.StringIO()
+	s.write(bcolors.YELLOW)
+	s.write(s1+'\n')
+	s.write(bcolors.END+'\n')
+	print s.getvalue()
+	s.close()
+
+def printMessage(s1):
+	s = sIO.StringIO()
+#	s.write(bcolors.RED)
+	s.write(s1+'\n')
+#	s.write(bcolors.END+'\n')
+	print s.getvalue()
+	s.close()

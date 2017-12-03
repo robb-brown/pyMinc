@@ -299,7 +299,7 @@ cdef class VIOVolume:
 		
 		voxels = get_volume_total_n_voxels(vol)
 		size = get_type_size(get_volume_data_type(vol))
-		dtype = ncTypeToNumpy[vol.nc_data_type][vol.signed_flag]
+		dtype = ncTypeToNumpy[vol.nc_data_type][vol.signed_flag==1]
 		
 #		alloc_volume_data(vol)
 
@@ -388,7 +388,11 @@ cdef class VIOVolume:
 		def __get__(self):
 			cdef int i
 			volume = {}
-			volume['dtype'] = ncTypeToNumpy[self.volume.nc_data_type][self.volume.signed_flag]
+			try:
+				volume['dtype'] = ncTypeToNumpy[self.volume.nc_data_type][self.volume.signed_flag==1]
+			except:
+				volume['dtype'] = None
+				print "Could not identify dtype for nc data type %s with signed flag %s" % (`self.volume.nc_data_type`,`self.volume.signed_flag`)
 			volume['min'] = self.volume.voxel_min
 			volume['max'] = self.volume.voxel_max
 			volume['dimensions'] = self.volume.array.n_dimensions
@@ -491,7 +495,8 @@ cdef class VIOGeneralTransform:
 			memcpy(<char*>ltransform.m[0],<char*>xfm.data,16*8)	
 			xfmPtr.linear_transform = ltransform
 			ALLOC(ltransform,1)
-			xfm = np.linalg.inv(xfm)
+			# Added the following line to hopefully fix transposed inverse problem Oct 27 2015
+			xfm = np.require(np.linalg.inv(xfm),requirements='F')
 			memcpy(<char*>ltransform.m[0],<char*>xfm.data,16*8)	
 			xfmPtr.inverse_linear_transform = ltransform
 			xfmPtr.n_transforms = 1
