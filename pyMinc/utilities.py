@@ -1,7 +1,9 @@
 from scipy.ndimage.interpolation import *
 from scipy.ndimage import *
 from numpy import *
-import mincUtils as minc
+
+from . import mincUtils as minc
+
 from pyMinc import VIOVolume, VIOGeneralTransform
 
 
@@ -13,12 +15,13 @@ def blurImage(image,level):
 	
 
 def linearResample(source,transform,like,invert=False,order=3,originalSpacing=False):
+	""" June 14, 2016 - this seems to work, both for the source==like and source != like cases"""
 	if transform.__class__ == VIOGeneralTransform:
 		xfm = mat(transform.data)
 	else:
 		xfm = mat(transform)
 		
-	if alltrue(xfm == identity(4)):
+	if alltrue(xfm == identity(4)) and source == like:
 		return VIOVolume(source)
 		
 	if invert:
@@ -32,9 +35,11 @@ def linearResample(source,transform,like,invert=False,order=3,originalSpacing=Fa
 
 	# Get the source to world transform
 	sourceToWorld = mat(source.voxelToWorldTransform.data)
+	#sourceToWorld[0:3,0:3] = transpose(sourceToWorld[0:3,0:3])
 	
 	# Get the target to world transform.
 	targetToWorld = mat(target.voxelToWorldTransform.data)
+	#targetToWorld[0:3,0:3] = transpose(targetToWorld[0:3,0:3])
 	
 	# Idea here is to change the targetToWorld transform so the output spacing is equal to the source spacing.
 	# Might have to change the starts too
@@ -45,10 +50,11 @@ def linearResample(source,transform,like,invert=False,order=3,originalSpacing=Fa
 	
 	# Total source voxel to target voxel transform, inverted
 	# It's important to multiply backwards, and don't forget about order of operations!
-	total = (targetToWorld.I*(xfm*sourceToWorld)).I
+	# following are equivalent
+	# total = sourceToWorld.I*xfm.I*targetToWorld
+	total = (targetToWorld.I*xfm*sourceToWorld).I
 	
-	#total = targetToWorld*xfm.I*sourceToWorld
-	
+
 	# These could be useful for doing transform input sampling
 	e1 = (total*mat([0,0,0,1]).T).T
 	e2 = (total*mat(list(array(source.metadata['shape'])[source.metadata['spatialAxes']])+[1]).T).T

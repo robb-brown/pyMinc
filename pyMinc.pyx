@@ -191,8 +191,8 @@ cdef class VIOVolume:
 		
 	def __init__(self,data=None,**args):
 		if debug: print "Allocating volume %s" % `self`
-		if not data == None:
-			if data.__class__ == str:
+		if not data is None:
+			if data.__class__ in [unicode,str]:
 				self.read(data,**args)
 			elif data.__class__ == VIOVolume:
 				args = data.metadata
@@ -240,17 +240,17 @@ cdef class VIOVolume:
 		
 		dimN = len(np.shape(data))
 
-		if spacing == None:
+		if spacing is None:
 			spacing = np.ones(dimN,np.float64)
 		else:
 			spacing = np.array(spacing,np.float64)
 
-		if starts == None:
+		if starts is None:
 			starts = np.zeros(dimN,np.float64)
 		else:
 			starts = np.array(starts,np.float64)
 		
-		if names == None:
+		if names is None:
 			dim_names = get_default_dim_names(dimN)
 		else:
 			ALLOC(dim_names,dimN)
@@ -328,7 +328,7 @@ cdef class VIOVolume:
 	def read(self,fname,type=None,dsigned=False,min=0.0,max=0.0,create=True):
 		cdef VIO_Volume vol = NULL
 		cdef minc_input_options *options = NULL
-		if type == None:
+		if type is None:
 			type = MI_ORIGINAL_TYPE
 			signed = False
 		else:
@@ -454,10 +454,10 @@ cdef class VIOGeneralTransform:
 		self.xfms = []
 		self.ownerFlag = owner
 		if debug: print "Allocating transform %s.  Setting owner to %s.  It is %s" % (`self`,owner,self.ownerFlag)
-		if not ptr == None:
+		if not ptr is None:
 			if PyCapsule_IsValid(ptr,NULL):
 				self.transform = <VIO_General_transform *>PyCapsule_GetPointer(ptr,NULL)
-			elif ptr.__class__ == str:
+			elif ptr.__class__ in [unicode,str]:
 				self.read(ptr)
 			else:
 				ALLOC(self.transform,1)
@@ -715,7 +715,7 @@ cdef class VIOGeneralTransform:
 			if self.transformType == 'linear':
 				return self
 			elif self.transformType == 'concatenated':
-				xfms = [t for t in [i.linearTransforms for i in self.transforms] if not t == None]
+				xfms = [t for t in [i.linearTransforms for i in self.transforms] if not t is None]
 				if len(xfms) == 1: xfms = xfms[0]
 				return xfms
 			else:
@@ -726,7 +726,7 @@ cdef class VIOGeneralTransform:
 			if self.transformType == 'grid':
 				return self
 			elif self.transformType == 'concatenated':
-				xfms = [t for t in [i.gridTransforms for i in self.transforms] if not t == None]
+				xfms = [t for t in [i.gridTransforms for i in self.transforms] if not t is None]
 				if len(xfms) == 1: xfms = xfms[0]
 				return xfms
 			else:
