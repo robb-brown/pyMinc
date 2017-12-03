@@ -1,3 +1,8 @@
-from pyMinc import *
-from pyMinctracc import *
-from utilities import *
+try:
+	from .pyMinc import *
+	from .utilities import *
+except:
+	from pyMinc import *
+	from utilities import *
+	
+#from pyMinctracc import *
