@@ -3,12 +3,17 @@ cimport numpy as np
 
 from cpython.ref cimport PyObject
 from cpython cimport PyCapsule, PyCapsule_New, PyCapsule_GetPointer, PyCapsule_IsValid
+from libc.stdlib cimport malloc, free
+from libc.string cimport strcmp
+from cpython.string cimport PyString_AsString
 
 from builtins cimport *
 from netCDF cimport *
 from libminc cimport *
 from volume_io cimport *
 import traceback
+
+
 
 np.import_array()
 
@@ -29,6 +34,13 @@ numpyToNCType = {	np.int8	: (NC_BYTE,True), 	np.uint8	: (NC_BYTE,False),
 					np.float32 : (NC_FLOAT,True),
 					np.float64 : (NC_DOUBLE,True),
 }		
+
+
+cdef char ** to_cstring_array(list_str):
+	cdef char **ret = <char **>malloc(len(list_str) * sizeof(char *))
+	for i in xrange(len(list_str)):
+		ret[i] = PyString_AsString(list_str[i])
+	return ret
 
 
 # libminc MINC file reading
@@ -325,16 +337,22 @@ cdef class VIOVolume:
 		status = output_volume(fname,type,signed,0,0,self.volume,NULL,NULL)
 		
 		
-	def read(self,fname,type=None,dsigned=False,min=0.0,max=0.0,create=True):
+	def read(self,fname,type=None,dsigned=False,min=0.0,max=0.0,create=True,dimNames=['zspace','yspace','xspace','','']):
 		cdef VIO_Volume vol = NULL
 		cdef minc_input_options *options = NULL
+		cdef char **cDimNames
 		if type is None:
 			type = MI_ORIGINAL_TYPE
 			signed = False
 		else:
 			type,signed = numpyToNCType.get(type,(type,dsigned))
 		ALLOC(vol,1)
-		status = input_volume(fname,0,NULL,type,signed,min,max,create,&vol,options)
+		if dimNames is None:
+			status = input_volume(fname,0,NULL,type,signed,min,max,create,&vol,options)
+		else:
+			cDimNames = to_cstring_array(dimNames)
+			status = input_volume(fname,0,cDimNames,type,signed,min,max,create,&vol,options)
+			free(cDimNames)
 		self.volume = vol
 		self.options = options		
 		return status
@@ -496,7 +514,8 @@ cdef class VIOGeneralTransform:
 			xfmPtr.linear_transform = ltransform
 			ALLOC(ltransform,1)
 			# Added the following line to hopefully fix transposed inverse problem Oct 27 2015
-			xfm = np.require(np.linalg.inv(xfm),requirements='F')
+			# Dunna know why the transpose is necessary, but it is.
+			xfm = np.require(np.linalg.inv(xfm),requirements='F').transpose()
 			memcpy(<char*>ltransform.m[0],<char*>xfm.data,16*8)	
 			xfmPtr.inverse_linear_transform = ltransform
 			xfmPtr.n_transforms = 1

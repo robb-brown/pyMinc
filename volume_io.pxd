@@ -297,9 +297,9 @@ cdef extern from "volume_io.h":
 
 
 	VIO_Status  input_volume(
-	    char                 filename[],
+	    VIO_STR                 filename,
 	    int                  n_dimensions,
-	    char                 *dim_names[],
+	    VIO_STR              dim_names[],
 	    nc_type              volume_nc_data_type,
 	    VIO_BOOL              volume_signed_flag,
 	    VIO_Real                 volume_voxel_min,
