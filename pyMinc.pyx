@@ -5,7 +5,9 @@ import numpy as np
 cimport numpy as np
 
 from cpython.ref cimport PyObject
-from cpython cimport PyCapsule, PyCapsule_New, PyCapsule_GetPointer, PyCapsule_IsValid
+#from cpython.pycapsule cimport PyCapsule, PyCapsule_New, PyCapsule_GetPointer, PyCapsule_IsValid
+from cpython.pycapsule cimport *
+
 from libc.stdlib cimport malloc, free
 from libc.string cimport strcmp
 #from cpython.string cimport PyString_AsString
