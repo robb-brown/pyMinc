@@ -2,6 +2,7 @@ from distutils.core import setup
 from distutils.extension import Extension
 import numpy, os
 
+from setupCython import *
 
 sourcefiles = ['pyMinc.c']#,'pyMinctracc.c']
 #libraries = ['minc2','netcdf','hdf5','curl','minctracc'] 	# 'volume_io2' - turned into minc2 in later versions
