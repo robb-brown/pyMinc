@@ -1,13 +1,13 @@
 from distutils.core import setup
 from distutils.extension import Extension
-import numpy
+import numpy, os
 
 
 sourcefiles = ['pyMinc.c']#,'pyMinctracc.c']
 #libraries = ['minc2','netcdf','hdf5','curl','minctracc'] 	# 'volume_io2' - turned into minc2 in later versions
 libraries = ['minc2','netcdf','hdf5','curl'] 	# 'volume_io2' - turned into minc2 in later versions
-include_dirs = ['.','pyMinctracc','/usr/local/include','/usr/local/minc-toolkit/include']
-library_dirs = ['.','pyMinctracc','/usr/lib','/usr/local/lib','/usr/local/minc-toolkit/lib']
+include_dirs = ['.','pyMinctracc',os.path.expandvars('$MINC_TOOLKIT/include'),'/usr/local/include','/usr/local/minc-toolkit/include']
+library_dirs = ['.','pyMinctracc',os.path.expandvars('$MINC_TOOLKIT/lib'),'/usr/lib','/usr/local/lib','/usr/local/minc-toolkit/lib']
 
 ext_modules = [
 	Extension("pyMinc", ['pyMinc.c'],
