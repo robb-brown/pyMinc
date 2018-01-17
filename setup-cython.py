@@ -6,8 +6,8 @@ import numpy
 
 #libraries = ['minc2','netcdf','hdf5','curl','minctracc']# 'volume_io2' - volume_io2 is in minc2 in newer versions
 libraries = ['minc2','netcdf','hdf5','curl']# 'volume_io2' - volume_io2 is in minc2 in newer versions
-include_dirs = ['.','pyMinctracc','/usr/local/include','/usr/local/minc-toolkit/include']
-library_dirs = ['.','pyMinctracc','/usr/lib','/usr/local/lib','/usr/local/minc-toolkit/lib']
+include_dirs = ['.','pyMinctracc',os.path.expandvars('$MINC_TOOLKIT/include'),'/usr/local/include','/usr/local/minc-toolkit/include']
+library_dirs = ['.','pyMinctracc',os.path.expandvars('$MINC_TOOLKIT/lib'),'/usr/lib','/usr/local/lib','/usr/local/minc-toolkit/lib']
 
 extensions = [
 	Extension("pyMinc", ['pyMinc.pyx'],
