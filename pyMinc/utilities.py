@@ -6,6 +6,7 @@ import subprocess as sub
 from pyMinc import VIOVolume, VIOGeneralTransform
 from . import myTempfile as tempfile
 from . import xfmParam
+import os
 
 
 # -----------------------------------  Execution ------------------------
@@ -270,11 +271,30 @@ def nonlinearResample(source,transform,like,invert=False,order=2):
 def resample(source,transform,like,invert=False,order=3):
 	if order.__class__ == str and order.startswith('nearest'):
 		order = 0
+	transform = identity(4) if transform is None else transform
+	if not isinstance(transform,VIOGeneralTransform):
+		transform = VIOGeneralTransform(transform)
 	allLinear = len([1 for i in transform.transforms if i.transformType == 'grid']) == 0
 	if allLinear:
 		return linearResample(source,transform,like,invert,order=order)
 	else:
 		return nonlinearResample(source,transform,like,invert,order=order)
-	
-	
+
+
+
+# MINC Toolkit (and related) wrappers
+
+def N3(image,quiet=True,arguments):
+	tempdir = tempfile.mkdtemp(fast=False)
+	if isinstance(image,VIOVolume):
+		image.write(os.path.join(tempdir,'nu-in.mnc'))
+	else:
+		print("Image of class %s not understood!" % (image.__class__))
+		return None
+	execute('cd %s; nu_correct -normalize_field -clobber nu-in.mnc nu-out.mnc' % tempdir,quiet=quiet)
+	im = VIOVolume(os.path.join(tempdir,'nu-out.mnc'),type=float32)
+	tempfile.releaseTempDir(tempdir)
+	return im
+
+
 	
