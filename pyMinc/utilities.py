@@ -284,7 +284,7 @@ def resample(source,transform,like,invert=False,order=3):
 
 # MINC Toolkit (and related) wrappers
 
-def N3(image,quiet=True,arguments):
+def N3(image,quiet=True):
 	tempdir = tempfile.mkdtemp(fast=False)
 	if isinstance(image,VIOVolume):
 		image.write(os.path.join(tempdir,'nu-in.mnc'))
