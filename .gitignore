@@ -1,4 +1,7 @@
 build/
+build-old/
+dist/
+dist-old/
 *.o
 *.so
 *.pyc
