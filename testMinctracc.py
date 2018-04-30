@@ -1,8 +1,5 @@
-import pyMinc
-import pylab
-pylab.ion()
+#!/usr/local/bin/python
 
-<<<<<<< HEAD
 from pyMinc import *
 from pyMinctracc import *
 from pylab import *
@@ -348,9 +345,3 @@ if 1:
 		except:
 			pass
 
-=======
-im = pyMinc.VIOVolume('00100.mnc')
-
-print('Image shape is: {}'.format(im.data.shape))
-pylab.figure(); pylab.imshow(im.data[im.data.shape[0]//2])
->>>>>>> 102046adb0ff38244d1dcfc70723d2e395b2235e

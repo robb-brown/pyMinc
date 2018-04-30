@@ -1,8 +1,16 @@
+#!python
+
+
 import numpy as np
 cimport numpy as np
 
 from cpython.ref cimport PyObject
-from cpython cimport PyCapsule, PyCapsule_New, PyCapsule_GetPointer, PyCapsule_IsValid
+#from cpython.pycapsule cimport PyCapsule, PyCapsule_New, PyCapsule_GetPointer, PyCapsule_IsValid
+from cpython.pycapsule cimport *
+
+from libc.stdlib cimport malloc, free
+from libc.string cimport strcmp
+#from cpython.string cimport PyString_AsString
 
 from builtins cimport *
 from netCDF cimport *
@@ -31,6 +39,14 @@ numpyToNCType = {	np.int8	: (NC_BYTE,True), 	np.uint8	: (NC_BYTE,False),
 }		
 
 
+cdef char ** to_cstring_array(list_str):
+	cdef char **ret = <char **>malloc(len(list_str) * sizeof(char *))
+	for i in xrange(len(list_str)):
+		ret[i] = list_str[i]
+	return ret
+
+
+
 # libminc MINC file reading
 
 class mincFile(object):
@@ -55,16 +71,16 @@ class mincFile(object):
 		cdef np.ndarray defaultRange = np.zeros(2,np.float64)
 		cdef np.ndarray actualRange = np.zeros(2,np.float64)
 		
-#		print "In setupICV"
+#		print("In setupICV")
 		self.imgid = ncvarid(self.mincFile,MIimage);
-#		print self.imgid
-#		print "Getting datatype"
+#		print(self.imgid)
+#		print("Getting datatype")
 		miget_datatype(self.mincFile,self.imgid,&mdatatype,&issigned)
 #		issigned = not issigned
-#		print "Getting valid range"
+#		print("Getting valid range")
 		miget_valid_range(self.mincFile,self.imgid,<double *>validRange.data)
 		miget_default_range(outputType,outputSigned,<double *>defaultRange.data)
-#		print "getting image range"
+#		print("getting image range")
 		miget_image_range(self.mincFile,<double *>actualRange.data)
 		
 		# Specify the type of image to get.  Just use float and fix later
@@ -86,11 +102,11 @@ class mincFile(object):
 		self.validRange = validRange
 		self.actualRange = actualRange
 		
-#		print "MDatatype: ", mdatatype
-#		print "Is signed: ", issigned
-#		print "valid range: ",validRange
-#		print "actual range: ",actualRange
-#		print "default range: ",defaultRange
+#		print("MDatatype: ", mdatatype)
+#		print("Is signed: ", issigned)
+#		print("valid range: ",validRange)
+#		print("actual range: ",actualRange)
+#		print("default range: ",defaultRange)
 		
 
 	def loadFile(self,fname=None):
@@ -110,12 +126,12 @@ class mincFile(object):
 		cdef double max
 		cdef int ret
 		
-#		print "Sizeof long: %d" % sizeof(long)
+#		print("Sizeof long: %d" % sizeof(long))
 		self.imgid = imgid
 		if (fname):
 			self.fname = fname
 		self.mincFile = miopen(self.fname,NC_NOWRITE)
-#		print "Creating ICV"
+#		print("Creating ICV")
 		self.icv = miicv_create()
 		self.setupICV()
 
@@ -190,7 +206,8 @@ cdef class VIOVolume:
 		self.ownerFlag = True
 		
 	def __init__(self,data=None,**args):
-		if debug: print "Allocating volume %s" % `self`
+		self.volume = NULL
+		if debug: print("Allocating volume %s" % `self`)
 		if not data is None:
 			if data.__class__ in [unicode,str]:
 				self.read(data,**args)
@@ -201,9 +218,9 @@ cdef class VIOVolume:
 				self.createWithData(data,args.get('spacing',None),args.get('starts',None),args.get('names',None))
 				
 	def __dealloc__(self):
-		if debug: print 'dealloc volume %s owner: %s' % (`self`,self.ownerFlag)
+		if debug: print('dealloc volume %s owner: %s' % (`self`,self.ownerFlag))
 		if not self.volume == NULL and self.ownerFlag:
-			if debug: print '	actually deallocating volume'
+			if debug: print('	actually deallocating volume')
 			delete_volume(self.volume)
 		if not self.options == NULL:
 			FREE(self.options)
@@ -322,20 +339,31 @@ cdef class VIOVolume:
 	def write(self,fname):
 		type = self.volume.nc_data_type
 		signed = self.volume.signed_flag
-		status = output_volume(fname,type,signed,0,0,self.volume,NULL,NULL)
+		status = output_volume(fname.encode('UTF-8'),type,signed,0,0,self.volume,NULL,NULL)
 		
 		
-	def read(self,fname,type=None,dsigned=False,min=0.0,max=0.0,create=True):
+	def read(self,fname,type=None,dsigned=False,min=0.0,max=0.0,create=True,dimNames=['zspace','yspace','xspace','','']):
 		cdef VIO_Volume vol = NULL
 		cdef minc_input_options *options = NULL
+		cdef char **cDimNames
 		if type is None:
 			type = MI_ORIGINAL_TYPE
 			signed = False
 		else:
 			type,signed = numpyToNCType.get(type,(type,dsigned))
 		ALLOC(vol,1)
-		status = input_volume(fname,0,NULL,type,signed,min,max,create,&vol,options)
-		self.volume = vol
+		if dimNames is None:
+			status = input_volume(fname.encode('UTF-8'),0,NULL,type,signed,min,max,create,&vol,options)
+		else:
+			dimNamesTemp = [d.encode('UTF-8') for d in dimNames]
+			cDimNames = to_cstring_array(dimNamesTemp)
+			status = input_volume(fname.encode('UTF-8'),0,cDimNames,type,signed,min,max,create,&vol,options)
+			free(cDimNames)
+		if status == 0:
+			self.volume = vol
+		else:
+			self.volume = NULL
+			delete_volume(vol)
 		self.options = options		
 		return status
 		
@@ -392,7 +420,7 @@ cdef class VIOVolume:
 				volume['dtype'] = ncTypeToNumpy[self.volume.nc_data_type][self.volume.signed_flag==1]
 			except:
 				volume['dtype'] = None
-				print "Could not identify dtype for nc data type %s with signed flag %s" % (`self.volume.nc_data_type`,`self.volume.signed_flag`)
+				print("Could not identify dtype for nc data type %s with signed flag %s" % (`self.volume.nc_data_type`,`self.volume.signed_flag`))
 			volume['min'] = self.volume.voxel_min
 			volume['max'] = self.volume.voxel_max
 			volume['dimensions'] = self.volume.array.n_dimensions
@@ -457,7 +485,8 @@ cdef class VIOGeneralTransform:
 	def __init__(self,ptr=None,owner=True):
 		self.xfms = []
 		self.ownerFlag = owner
-		if debug: print "Allocating transform %s.  Setting owner to %s.  It is %s" % (`self`,owner,self.ownerFlag)
+		self.transform = NULL
+		if debug: print("Allocating transform %s.  Setting owner to %s.  It is %s" % (`self`,owner,self.ownerFlag))
 		if not ptr is None:
 			if PyCapsule_IsValid(ptr,NULL):
 				self.transform = <VIO_General_transform *>PyCapsule_GetPointer(ptr,NULL)
@@ -473,12 +502,12 @@ cdef class VIOGeneralTransform:
 		cdef VIO_Transform *ltransform = NULL
 		cdef np.ndarray xfm
 		cdef int i,inverse_flag
-		if debug: print "Setting up transform %s.  Data is %s" % (`self`,`data`)
+		if debug: print("Setting up transform %s.  Data is %s" % (`self`,`data`))
 		if data.__class__ == VIOGeneralTransform:
-			if debug: print "	Data is a transform.  Getting data and setting up again"
+			if debug: print("	Data is a transform.  Getting data and setting up again")
 			self.setupTransform(xfmPtr,data.getData(noInverse=True,copy=False),data.inverseFlag)
 		if data.__class__ == VIOVolume:
-			if debug: print "	Data is a volume.  Setting up a grid transform"
+			if debug: print("	Data is a volume.  Setting up a grid transform")
 			data = VIOVolume(data,owner=False)			# Make a copy
 			data.setOwnership(False)					# We're going to toss the VIOVolume, but we don't want it deallocing the pointer
 			xfmPtr.type = GRID_TRANSFORM
@@ -486,7 +515,7 @@ cdef class VIOGeneralTransform:
 			xfmPtr.displacement_volume = <VIO_Volume>PyCapsule_GetPointer(data.volumePtr,NULL)
 			xfmPtr.n_transforms = 1
 		elif np.shape(data) == (4,4):
-			if debug: print "	Data is a linear transform"
+			if debug: print("	Data is a linear transform")
 			xfmPtr.type = LINEAR
 			xfmPtr.inverse_flag = inverseFlag
 			xfm = np.array(data,np.float64)
@@ -496,12 +525,13 @@ cdef class VIOGeneralTransform:
 			xfmPtr.linear_transform = ltransform
 			ALLOC(ltransform,1)
 			# Added the following line to hopefully fix transposed inverse problem Oct 27 2015
-			xfm = np.require(np.linalg.inv(xfm),requirements='F')
+			# Dunna know why the transpose is necessary, but it is.
+			xfm = np.require(np.linalg.inv(xfm),requirements='F').transpose()
 			memcpy(<char*>ltransform.m[0],<char*>xfm.data,16*8)	
 			xfmPtr.inverse_linear_transform = ltransform
 			xfmPtr.n_transforms = 1
 		elif data.__class__ in [list,tuple]:
-			if debug: print "	Data is a list.  Setting up a concatenated transform."
+			if debug: print("	Data is a list.  Setting up a concatenated transform.")
 			xfmPtr.type = CONCATENATED_TRANSFORM
 			xfmPtr.inverse_flag = inverseFlag
 			ALLOC(xfmPtr.transforms,len(data))
@@ -512,19 +542,20 @@ cdef class VIOGeneralTransform:
 			
 	cdef finishSetup(self):
 		self.xfms = []
-		if self.transformType == 'concatenated':
-			for i in range(0,self.transform.n_transforms):
-				xfm = VIOGeneralTransform(owner=False)
-				xfm.setTransformPtr(&self.transform.transforms[i],0)
-				xfm.finishSetup()
-				self.xfms.append(xfm)
+		if not self.transform == NULL:
+			if self.transformType == 'concatenated':
+				for i in range(0,self.transform.n_transforms):
+					xfm = VIOGeneralTransform(owner=False)
+					xfm.setTransformPtr(&self.transform.transforms[i],0)
+					xfm.finishSetup()
+					self.xfms.append(xfm)
 
 
 	def __dealloc__(self):
 #		if debug: print 'dealloc transform %d %s' % (self.transform.type,self.ownerFlag)
-		if debug: print 'In dealloc transform %s %s owner: %s' % (`self`,self.transformType,self.ownerFlag)
+		if debug: print('In dealloc transform %s %s owner: %s' % (`self`,self.transformType,self.ownerFlag))
 		if not self.transform == NULL and self.ownerFlag:
-			if debug: print '	dealloc transform'
+			if debug: print('	dealloc transform')
 			for i in self.xfms:
 				del i
 			delete_general_transform(self.transform)
@@ -546,15 +577,19 @@ cdef class VIOGeneralTransform:
 			
 
 	def write(self,fname,comments=''):
-		status = output_transform_file(fname,comments,self.transform)
+		status = output_transform_file(fname.encode('UTF-8'),comments.encode('UTF-8'),self.transform)
 		return status
 
 
 	def read(self,fname):
 		cdef VIO_General_transform *xfm = NULL
 		ALLOC(xfm,1)
-		status = input_transform_file(fname,xfm)
-		self.transform = xfm
+		status = input_transform_file(fname.encode('UTF-8'),xfm)
+		if status == 0:
+			self.transform = xfm
+		else:
+			self.transform = NULL;
+			delete_general_transform(xfm)
 		return status
 		
 		
@@ -755,7 +790,7 @@ cdef class VIOGeneralTransform:
 				xfms = [i.inverse for i in self.transforms]
 				newTransform = VIOGeneralTransform(xfms[::-1])
 			else:
-				if debug: print "I don't know how to handle this kind of transform"
+				if debug: print("I don't know how to handle this kind of transform")
 				newTransform = None
 			return newTransform
 	

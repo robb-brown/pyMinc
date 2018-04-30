@@ -1,4 +1,10 @@
 build/
+<<<<<<< HEAD
+build-old/
+dist/
+dist-old/
+=======
+>>>>>>> 102046adb0ff38244d1dcfc70723d2e395b2235e
 *.o
 *.so
 *.pyc
@@ -6,4 +12,7 @@ pyMinc.c
 <<<<<<< HEAD
 pyMinctracc/pyMinctracc.c
 =======
->>>>>>> a08247c7bb1cc0479419b10221a32ca9920b7831
+pyMinctracc/pyMinctracc.c
+*.mnc
+*.mnc.gz
+>>>>>>> 102046adb0ff38244d1dcfc70723d2e395b2235e

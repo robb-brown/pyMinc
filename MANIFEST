@@ -4,7 +4,6 @@ __init__.py
 builtins.pxd
 examples.py
 libminc.pxd
-myTempfile.py
 netCDF.pxd
 pyMinc.c
 pyMinc.pyx
@@ -12,7 +11,6 @@ setup-cython.py
 setup.py
 test.py
 volume_io.pxd
-xfmParam.py
 pyMinc/__init__.py
 pyMinc/examples.py
 pyMinc/mincUtils.py
