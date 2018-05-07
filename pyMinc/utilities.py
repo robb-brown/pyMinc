@@ -292,7 +292,10 @@ def N3(image,quiet=True):
 		print("Image of class %s not understood!" % (image.__class__))
 		return None
 	execute('cd %s; nu_correct -normalize_field -clobber nu-in.mnc nu-out.mnc' % tempdir,quiet=quiet)
-	im = VIOVolume(os.path.join(tempdir,'nu-out.mnc'),type=float32)
+	if os.path.exists(os.path.join(tempdir,'nu-out.mnc')):
+		im = VIOVolume(os.path.join(tempdir,'nu-out.mnc'),type=float32)
+	else:
+		im = None
 	tempfile.releaseTempDir(tempdir)
 	return im
 

@@ -11,13 +11,13 @@ pyMinc.c
 pyMinc.pyx
 setup-cython.py
 setup.py
+setupCython.py
 test.py
 testMinctracc.py
 volume_io.pxd
 xfmParam.py
 pyMinc/__init__.py
 pyMinc/examples.py
-pyMinc/mutualInformation.py
 pyMinc/myTempfile.py
 pyMinc/utilities.py
 pyMinc/xfmParam.py
