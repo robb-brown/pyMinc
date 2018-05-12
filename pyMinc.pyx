@@ -16,7 +16,7 @@ from builtins cimport *
 from netCDF cimport *
 from libminc cimport *
 from volume_io cimport *
-import traceback
+import traceback, os
 
 np.import_array()
 
