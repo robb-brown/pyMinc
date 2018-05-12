@@ -222,8 +222,10 @@ cdef class VIOVolume:
 		if not self.volume == NULL and self.ownerFlag:
 			if debug: print('	actually deallocating volume')
 			delete_volume(self.volume)
+			self.volume = NULL
 		if not self.options == NULL:
 			FREE(self.options)
+			self.options = NULL
 			
 			
 	def __getstate__(self):
@@ -296,6 +298,7 @@ cdef class VIOVolume:
 		
 		if not self.volume == NULL:
 			delete_volume(self.volume)
+			self.volume = NULL
 
 		self.volume = vol
 		self.ownerFlag = True
@@ -346,6 +349,11 @@ cdef class VIOVolume:
 		cdef VIO_Volume vol = NULL
 		cdef minc_input_options *options = NULL
 		cdef char **cDimNames
+		
+		if not os.path.exists(fname):
+			print('File not found: {}'.format(fname))
+			return -1
+			
 		if type is None:
 			type = MI_ORIGINAL_TYPE
 			signed = False
