@@ -18,6 +18,8 @@ volume_io.pxd
 xfmParam.py
 pyMinc/__init__.py
 pyMinc/examples.py
+pyMinc/mincUtils.py
+pyMinc/mutualInformation.py
 pyMinc/myTempfile.py
 pyMinc/utilities.py
 pyMinc/xfmParam.py

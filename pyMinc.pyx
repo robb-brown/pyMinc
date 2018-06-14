@@ -345,7 +345,7 @@ cdef class VIOVolume:
 		status = output_volume(fname.encode('UTF-8'),type,signed,0,0,self.volume,NULL,NULL)
 		
 		
-	def read(self,fname,type=None,dsigned=False,min=0.0,max=0.0,create=True,dimNames=['zspace','yspace','xspace','','']):
+	def read(self,fname,type=np.float32,dsigned=False,min=0.0,max=0.0,create=True,dimNames=['zspace','yspace','xspace','','']):
 		cdef VIO_Volume vol = NULL
 		cdef minc_input_options *options = NULL
 		cdef char **cDimNames
