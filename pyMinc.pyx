@@ -497,6 +497,7 @@ cdef class VIOGeneralTransform:
 		if debug: print("Allocating transform %s.  Setting owner to %s.  It is %s" % (`self`,owner,self.ownerFlag))
 		if not ptr is None:
 			if PyCapsule_IsValid(ptr,NULL):
+				if debug: print('Setting up transform from a transform pointer.  no copying!')
 				self.transform = <VIO_General_transform *>PyCapsule_GetPointer(ptr,NULL)
 			elif ptr.__class__ in [unicode,str]:
 				self.read(ptr)
@@ -513,7 +514,7 @@ cdef class VIOGeneralTransform:
 		if debug: print("Setting up transform %s.  Data is %s" % (`self`,`data`))
 		if data.__class__ == VIOGeneralTransform:
 			if debug: print("	Data is a transform.  Getting data and setting up again")
-			self.setupTransform(xfmPtr,data.getData(noInverse=True,copy=False),data.inverseFlag)
+			self.setupTransform(xfmPtr,data.getData(noInverse=True,copy=True),data.inverseFlag)
 		if data.__class__ == VIOVolume:
 			if debug: print("	Data is a volume.  Setting up a grid transform")
 			data = VIOVolume(data,owner=False)			# Make a copy
@@ -522,6 +523,8 @@ cdef class VIOGeneralTransform:
 			xfmPtr.inverse_flag = inverseFlag
 			xfmPtr.displacement_volume = <VIO_Volume>PyCapsule_GetPointer(data.volumePtr,NULL)
 			xfmPtr.n_transforms = 1
+			if debug: print('Deleting temporary grid transform volume object ({})'.format(data))
+			del data
 		elif np.shape(data) == (4,4):
 			if debug: print("	Data is a linear transform")
 			xfmPtr.type = LINEAR
@@ -544,7 +547,7 @@ cdef class VIOGeneralTransform:
 			xfmPtr.inverse_flag = inverseFlag
 			ALLOC(xfmPtr.transforms,len(data))
 			for i,x in enumerate(data):
-				self.setupTransform(xfmPtr.transforms+i,x,False)
+				self.setupTransform(xfmPtr.transforms+i,x,inverseFlag = False)
 			xfmPtr.n_transforms = len(data)
 			
 			
@@ -556,6 +559,7 @@ cdef class VIOGeneralTransform:
 					xfm = VIOGeneralTransform(owner=False)
 					xfm.setTransformPtr(&self.transform.transforms[i],0)
 					xfm.finishSetup()
+					xfm.setOwnership(False)
 					self.xfms.append(xfm)
 
 
@@ -563,10 +567,23 @@ cdef class VIOGeneralTransform:
 #		if debug: print 'dealloc transform %d %s' % (self.transform.type,self.ownerFlag)
 		if debug: print('In dealloc transform %s %s owner: %s' % (`self`,self.transformType,self.ownerFlag))
 		if not self.transform == NULL and self.ownerFlag:
-			if debug: print('	dealloc transform')
-			for i in self.xfms:
-				del i
-			delete_general_transform(self.transform)
+			if self.transform.type == CONCATENATED_TRANSFORM:
+				# if debug: print('	deallocing concatenated transforms')
+				# for i in self.xfms:
+				# 	i.setOwnership(True)
+				# 	del i
+				# self.transform.transforms = NULL
+				if debug: print('	deallocing parent transform')
+				delete_general_transform(self.transform)
+			elif self.transform.type == GRID_TRANSFORM:
+				delete_general_transform(self.transform)
+			else:
+				if debug: print('	dealloc transform itself')
+				delete_general_transform(self.transform)
+				if debug: print('	dealloc transform xfms')
+				for i in self.xfms:
+					i.setOwnership(False)
+					del i
 
 	def __getstate__(self):
 		ret = {'data' : self.data}

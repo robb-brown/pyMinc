@@ -6,7 +6,7 @@ import subprocess as sub
 from pyMinc import VIOVolume, VIOGeneralTransform
 from . import myTempfile as tempfile
 from . import xfmParam
-import os
+import os, copy, numpy
 
 
 # -----------------------------------  Execution ------------------------
