@@ -213,9 +213,17 @@ cdef class VIOVolume:
 				self.read(data,**args)
 			elif data.__class__ == VIOVolume:
 				args = data.metadata
-				self.createWithData(data.data,args.get('spacing',None),args.get('starts',None),args.get('names',None))
+				self.createWithData(data.data,
+									spacing=args.get('spacing',None),
+									starts=args.get('starts',None),
+									cosines=args.get('cosines',None),
+									names=args.get('names',None))
 			else:
-				self.createWithData(data,args.get('spacing',None),args.get('starts',None),args.get('names',None))
+				self.createWithData(data,
+									spacing=args.get('spacing',None),
+									starts=args.get('starts',None),
+									cosines=args.get('cosines',None),
+									names=args.get('names',None))
 				
 	def __dealloc__(self):
 		if debug: print('dealloc volume %s owner: %s' % (`self`,self.ownerFlag))
@@ -234,7 +242,11 @@ cdef class VIOVolume:
 		return ret
 	
 	def __setstate__(self,args):
-		self.createWithData(args['data'],args.get('spacing',None),args.get('starts',None),args.get('names',None))
+		self.createWithData(args['data'],
+						spacing=args.get('spacing',None),
+						starts=args.get('starts',None),
+						cosines=args.get('cosines',None),
+						names=args.get('names',None))
 
 	def __reduce__(self):
 		return (VIOVolume,(),self.__getstate__())
@@ -252,7 +264,7 @@ cdef class VIOVolume:
 #		self.alloc_multidim_array(volume.array)
 
 
-	cdef createWithData(self,np.ndarray data,spacing=None,starts=None,names=None):
+	cdef createWithData(self,np.ndarray data,spacing=None,starts=None,cosines=None,names=None):
 		cdef VIO_Volume vol = NULL
 		cdef char **dim_names = NULL
 		cdef np.ndarray vec
@@ -268,6 +280,11 @@ cdef class VIOVolume:
 			starts = np.zeros(dimN,np.float64)
 		else:
 			starts = np.array(starts,np.float64)
+
+		if cosines is None:
+			cosines = None
+		else:
+			cosines = [np.array(cosine,np.float64) for cosine in cosines]
 		
 		if names is None:
 			dim_names = get_default_dim_names(dimN)
@@ -283,6 +300,11 @@ cdef class VIOVolume:
 		vec = np.array(np.shape(data),np.int32); set_volume_sizes(vol,<int*>(vec.data))
 		vec = spacing; set_volume_separations(vol,<VIO_Real*>(vec.data))
 		vec = starts; set_volume_starts(vol,<VIO_Real*>(vec.data))
+		
+		if not cosines is None:
+			for v,vec in enumerate(cosines):
+				set_volume_direction_cosine(vol,v,<VIO_Real*>(vec.data))
+		
 		vol.voxel_to_world_transform_uptodate = False
 		alloc_volume_data(vol)
 		
