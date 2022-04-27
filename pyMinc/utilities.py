@@ -284,14 +284,15 @@ def resample(source,transform,like,invert=False,order=3):
 
 # MINC Toolkit (and related) wrappers
 
-def N3(image,quiet=True):
+def N3(image,quiet=True,args=''):
 	tempdir = tempfile.mkdtemp(fast=False)
 	if isinstance(image,VIOVolume):
 		image.write(os.path.join(tempdir,'nu-in.mnc'))
 	else:
 		print("Image of class %s not understood!" % (image.__class__))
 		return None
-	execute('cd %s; nu_correct -normalize_field -clobber nu-in.mnc nu-out.mnc' % tempdir,quiet=quiet)
+	cmd = 'nu_correct -normalize_field {args} -clobber nu-in.mnc nu-out.mnc'.format(args=args)
+	execute('cd {}; '.format(tempdir)+cmd,quiet=quiet)
 	if os.path.exists(os.path.join(tempdir,'nu-out.mnc')):
 		im = VIOVolume(os.path.join(tempdir,'nu-out.mnc'),type=float32)
 	else:

@@ -1,19 +1,18 @@
 from scipy.ndimage.interpolation import *
 from scipy.ndimage import *
 from numpy import *
-<<<<<<< HEAD
-
-from . import mincUtils as minc
-
-from pyMinc import VIOVolume, VIOGeneralTransform
-
-=======
+import numpy
 import subprocess as sub
 
 from pyMinc import VIOVolume, VIOGeneralTransform
 from . import myTempfile as tempfile
 from . import xfmParam
+<<<<<<< HEAD
 import os
+import copy
+=======
+import os, copy, numpy
+>>>>>>> 46c8a5d0dcf61af81e2b7c8502a59d8b7c5fd65a
 
 
 # -----------------------------------  Execution ------------------------
@@ -160,7 +159,6 @@ def printXFMParameters(xfm,degrees=True):
 	
 
 # -----------------------------------------------------------------------------------------
->>>>>>> 102046adb0ff38244d1dcfc70723d2e395b2235e
 
 def blurImage(image,level):
 	size = level / 2. / 2.35			# sigma in mm
@@ -177,11 +175,7 @@ def linearResample(source,transform,like,invert=False,order=3,originalSpacing=Fa
 		xfm = transform
 
 	if xfm.__class__ in (list,tuple) and not len(shape(xfm)) == 2:
-<<<<<<< HEAD
-		xfm = mat(minc.concatenateXFMs(xfm))
-=======
 		xfm = mat(concatenateXFMs(xfm))
->>>>>>> 102046adb0ff38244d1dcfc70723d2e395b2235e
 	else:
 		xfm = mat(xfm)
 				
@@ -206,15 +200,9 @@ def linearResample(source,transform,like,invert=False,order=3,originalSpacing=Fa
 	# Idea here is to change the targetToWorld transform so the output spacing is equal to the source spacing.
 	# Might have to change the starts too
 	# if originalSpacing:
-<<<<<<< HEAD
-	# 	params = minc.xfmParameters(targetToWorld)
-	# 	params['scales'] = spacing
-	# 	targetToWorld = minc.xfmFromParameters(**params)
-=======
 	# 	params = xfmParameters(targetToWorld)
 	# 	params['scales'] = spacing
 	# 	targetToWorld = xfmFromParameters(**params)
->>>>>>> 102046adb0ff38244d1dcfc70723d2e395b2235e
 	
 	# Total source voxel to target voxel transform, inverted
 	# It's important to multiply backwards, and don't forget about order of operations!
@@ -244,20 +232,6 @@ def linearResample(source,transform,like,invert=False,order=3,originalSpacing=Fa
 	
 	
 	
-<<<<<<< HEAD
-def mincResample(source,xfm,like,invert=False):
-	print "WARNING: Using MINC nonlinear resampling"
-	import os.path as p
-		
-	tempdir = minc.getTempDir()
-	source.write(p.join(tempdir,'source.mnc.gz'))
-	like.write(p.join(tempdir,'like.mnc.gz'))
-	xfm.write(p.join(tempdir,'xfm.xfm'))
-	minc.resample(p.join(tempdir,'source.mnc.gz'),p.join(tempdir,'resampled.mnc.gz'),xfm=p.join(tempdir,'xfm.xfm'),like=p.join(tempdir,'like.mnc.gz'),simpleResample=True)
-	resampled = VIOVolume(p.join(tempdir,'resampled.mnc.gz'))
-	print "mincresample dir: %s" % tempdir
-	minc.releaseTempDir(tempdir)								# DEBUG
-=======
 def mincResample(source,xfm,like,invert=False,quiet=True):
 	print("WARNING: Using MINC resampling")
 	import os.path as p
@@ -281,7 +255,6 @@ def mincResample(source,xfm,like,invert=False,quiet=True):
 	#minc.resample(p.join(tempdir,'source.mnc.gz'),p.join(tempdir,'resampled.mnc.gz'),xfm=p.join(tempdir,'xfm.xfm'),like=p.join(tempdir,'like.mnc.gz'),simpleResample=True)
 	resampled = VIOVolume(p.join(tempdir,'resampled.mnc'))
 	tempfile.releaseTempDir(tempdir)								# DEBUG
->>>>>>> 102046adb0ff38244d1dcfc70723d2e395b2235e
 	return resampled
 
 	
@@ -304,21 +277,14 @@ def nonlinearResample(source,transform,like,invert=False,order=2):
 def resample(source,transform,like,invert=False,order=3):
 	if order.__class__ == str and order.startswith('nearest'):
 		order = 0
-<<<<<<< HEAD
-=======
 	transform = identity(4) if transform is None else transform
 	if not isinstance(transform,VIOGeneralTransform):
 		transform = VIOGeneralTransform(transform)
->>>>>>> 102046adb0ff38244d1dcfc70723d2e395b2235e
 	allLinear = len([1 for i in transform.transforms if i.transformType == 'grid']) == 0
 	if allLinear:
 		return linearResample(source,transform,like,invert,order=order)
 	else:
 		return nonlinearResample(source,transform,like,invert,order=order)
-<<<<<<< HEAD
-	
-	
-=======
 
 
 
@@ -332,10 +298,12 @@ def N3(image,quiet=True):
 		print("Image of class %s not understood!" % (image.__class__))
 		return None
 	execute('cd %s; nu_correct -normalize_field -clobber nu-in.mnc nu-out.mnc' % tempdir,quiet=quiet)
-	im = VIOVolume(os.path.join(tempdir,'nu-out.mnc'),type=float32)
+	if os.path.exists(os.path.join(tempdir,'nu-out.mnc')):
+		im = VIOVolume(os.path.join(tempdir,'nu-out.mnc'),type=float32)
+	else:
+		im = None
 	tempfile.releaseTempDir(tempdir)
 	return im
 
 
->>>>>>> 102046adb0ff38244d1dcfc70723d2e395b2235e
 	
