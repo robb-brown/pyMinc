@@ -213,9 +213,9 @@ cdef class VIOVolume:
 				self.read(data,**args)
 			elif data.__class__ == VIOVolume:
 				args = data.metadata
-				self.createWithData(data.data,args.get('spacing',None),args.get('starts',None),args.get('names',None))
+				self.createWithData(data.data,spacing=args.get('spacing',None),starts=args.get('starts',None),cosines=args.get('cosines',None),names=args.get('names',None))
 			else:
-				self.createWithData(data,args.get('spacing',None),args.get('starts',None),args.get('names',None))
+				self.createWithData(data,spacing=args.get('spacing',None),starts=args.get('starts',None),cosines=args.get('cosines',None),names=args.get('names',None))
 				
 	def __dealloc__(self):
 		if debug: print('dealloc volume %s owner: %s' % (`self`,self.ownerFlag))
@@ -252,7 +252,7 @@ cdef class VIOVolume:
 #		self.alloc_multidim_array(volume.array)
 
 
-	cdef createWithData(self,np.ndarray data,spacing=None,starts=None,names=None):
+	cdef createWithData(self,np.ndarray data,spacing=None,starts=None,cosines=None,names=None):
 		cdef VIO_Volume vol = NULL
 		cdef char **dim_names = NULL
 		cdef np.ndarray vec
@@ -268,7 +268,7 @@ cdef class VIOVolume:
 			starts = np.zeros(dimN,np.float64)
 		else:
 			starts = np.array(starts,np.float64)
-		
+				
 		if names is None:
 			dim_names = get_default_dim_names(dimN)
 		else:
@@ -283,6 +283,11 @@ cdef class VIOVolume:
 		vec = np.array(np.shape(data),np.int32); set_volume_sizes(vol,<int*>(vec.data))
 		vec = spacing; set_volume_separations(vol,<VIO_Real*>(vec.data))
 		vec = starts; set_volume_starts(vol,<VIO_Real*>(vec.data))
+		if not cosines is None:
+			cosines = np.array(cosines,np.float64)
+			for direction in range(0,cosines.shape[0]):
+				vec = np.array(cosines[direction],np.float64)
+				set_volume_direction_cosine(vol,direction,<VIO_Real*>(vec.data))
 		vol.voxel_to_world_transform_uptodate = False
 		alloc_volume_data(vol)
 		
@@ -383,7 +388,26 @@ cdef class VIOVolume:
 		compute_world_transform(self.volume.spatial_axes,self.volume.separations,self.volume.direction_cosines,self.volume.starts,xfm)
 		transform = VIOGeneralTransform(); transform.setTransformPtr(xfm);
 		return transform
-
+		
+	def setSpacing(self,spacing):
+		cdef np.ndarray vec = np.array(spacing,np.float64)
+		set_volume_separations(self.volume,<VIO_Real*>(vec.data))
+		self.volume.voxel_to_world_transform_uptodate = False
+	
+	def setStarts(self,starts):
+		cdef np.ndarray vec = np.array(starts,np.float64)
+		set_volume_starts(self.volume,<VIO_Real*>(vec.data))
+		self.volume.voxel_to_world_transform_uptodate = False
+	
+	def setCosines(self,cosines):
+		cdef np.ndarray vec
+		if not cosines is None:
+			cosines = np.array(cosines,np.float64)
+			for direction in range(0,cosines.shape[0]):
+				vec = np.array(cosines[direction],np.float64)
+				set_volume_direction_cosine(self.volume,direction,<VIO_Real*>(vec.data))
+		self.volume.voxel_to_world_transform_uptodate = False
+		
 	
 	cdef voxelToWorldFast(self,np.ndarray point,np.ndarray transformed):
 		convert_voxel_to_world(self.volume,<VIO_Real*>point.data,<VIO_Real*>transformed.data,<VIO_Real*>transformed.data+1,<VIO_Real*>transformed.data+2)
@@ -467,11 +491,6 @@ cdef class VIOVolume:
 			memcpy(<char*>data.data,<char*>dataPtr,dtype.itemsize*np.product(tempArr))
 		else:
 			data = np.PyArray_SimpleNewFromData(volume['dimensions'],<np.npy_intp*>tempArr.data,typenum,dataPtr)
-
-		# USE THIS TO COPY THE DATA TO PYTHON INSTEAD OF JUST WRAPPING A NUMPY ARRAY AROUND IT
-#		np.zeros(np.product(volume['shape']),volume['dtype'])
-#		count=data.dtype.itemsize*np.product(volume['shape'])
-#		memcpy(<char*>data.data,<char*>dataPtr,count)
 
 		return data
 		
