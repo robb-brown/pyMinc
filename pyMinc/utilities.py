@@ -187,7 +187,7 @@ def linearResample(source,transform,like,invert=False,order=3,originalSpacing=Fa
 
 	# Get the source to world transform
 	sourceToWorld = mat(source.voxelToWorldTransform.data)
-	
+
 	# Get the target to world transform.
 	targetToWorld = mat(target.voxelToWorldTransform.data)
 	

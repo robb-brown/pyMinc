@@ -405,7 +405,26 @@ cdef class VIOVolume:
 		compute_world_transform(self.volume.spatial_axes,self.volume.separations,self.volume.direction_cosines,self.volume.starts,xfm)
 		transform = VIOGeneralTransform(); transform.setTransformPtr(xfm);
 		return transform
-
+		
+	def setSpacing(self,spacing):
+		cdef np.ndarray vec = np.array(spacing,np.float64)
+		set_volume_separations(self.volume,<VIO_Real*>(vec.data))
+		self.volume.voxel_to_world_transform_uptodate = False
+	
+	def setStarts(self,starts):
+		cdef np.ndarray vec = np.array(starts,np.float64)
+		set_volume_starts(self.volume,<VIO_Real*>(vec.data))
+		self.volume.voxel_to_world_transform_uptodate = False
+	
+	def setCosines(self,cosines):
+		cdef np.ndarray vec
+		if not cosines is None:
+			cosines = np.array(cosines,np.float64)
+			for direction in range(0,cosines.shape[0]):
+				vec = np.array(cosines[direction],np.float64)
+				set_volume_direction_cosine(self.volume,direction,<VIO_Real*>(vec.data))
+		self.volume.voxel_to_world_transform_uptodate = False
+		
 	
 	cdef voxelToWorldFast(self,np.ndarray point,np.ndarray transformed):
 		convert_voxel_to_world(self.volume,<VIO_Real*>point.data,<VIO_Real*>transformed.data,<VIO_Real*>transformed.data+1,<VIO_Real*>transformed.data+2)
@@ -489,11 +508,6 @@ cdef class VIOVolume:
 			memcpy(<char*>data.data,<char*>dataPtr,dtype.itemsize*np.product(tempArr))
 		else:
 			data = np.PyArray_SimpleNewFromData(volume['dimensions'],<np.npy_intp*>tempArr.data,typenum,dataPtr)
-
-		# USE THIS TO COPY THE DATA TO PYTHON INSTEAD OF JUST WRAPPING A NUMPY ARRAY AROUND IT
-#		np.zeros(np.product(volume['shape']),volume['dtype'])
-#		count=data.dtype.itemsize*np.product(volume['shape'])
-#		memcpy(<char*>data.data,<char*>dataPtr,count)
 
 		return data
 		
