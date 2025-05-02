@@ -1,11 +1,7 @@
-Metadata-Version: 1.0
+Metadata-Version: 2.1
 Name: pyMinc
 Version: 0.2
 Summary: A Python module to interface with MINC
 Home-page: http://www.robbtech.com
 Author: Robert Brown
 Author-email: robb@robbtech.com
-License: UNKNOWN
-Description-Content-Type: UNKNOWN
-Description: UNKNOWN
-Platform: UNKNOWN

@@ -9,3 +9,4 @@ pyMinc.c
 pyMinctracc/pyMinctracc.c
 *.mnc
 *.mnc.gz
+pyMinc.egg.*
